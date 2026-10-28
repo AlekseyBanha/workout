@@ -1,0 +1,32 @@
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: "0 9 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Select one exercise row
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "Add repository secrets SUPABASE_URL and SUPABASE_ANON_KEY"
+            exit 1
+          fi
+          status=$(curl -sS -o /tmp/keepalive.json -w "%{http_code}" \
+            "${SUPABASE_URL%/}/rest/v1/exercises?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "Accept: application/json")
+          echo "HTTP ${status}"
+          cat /tmp/keepalive.json
+          echo
+          test "$status" = "200"
