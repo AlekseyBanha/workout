@@ -3,8 +3,10 @@ import { fill, uk } from "../../i18n/uk.ts";
 import { formatWeight, isHalfStep, parseDecimal } from "../../lib/numbers.ts";
 import {
   prefillForNextSet,
+  previousSetFor,
   suggestProgression,
   type ProgressionSettings,
+  type ProgressionSuggestion,
   type SetSnapshot,
 } from "../../lib/progression.ts";
 import type { Exercise, WorkoutSet } from "../../lib/types.ts";
@@ -14,6 +16,12 @@ type Draft = { weight: string; reps: string };
 
 function draftFrom(weight: number, reps: number): Draft {
   return { weight: formatWeight(weight), reps: String(reps) };
+}
+
+function draftMatches(draft: Draft, suggestion: ProgressionSuggestion): boolean {
+  const weight = parseDecimal(draft.weight);
+  const reps = Number(draft.reps);
+  return weight === suggestion.weight && reps === suggestion.reps;
 }
 
 export function ExerciseBlock({
@@ -42,6 +50,7 @@ export function ExerciseBlock({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Draft>({ weight: "", reps: "" });
   const [error, setError] = useState("");
+  const [pulse, setPulse] = useState(0);
   const seeded = useRef(false);
 
   useEffect(() => {
@@ -56,6 +65,21 @@ export function ExerciseBlock({
     () => suggestProgression(previous, nextNumber, settings),
     [previous, nextNumber, settings],
   );
+  const source = useMemo(() => previousSetFor(previous, nextNumber), [previous, nextNumber]);
+  const applied = suggestion ? draftMatches(draft, suggestion) : false;
+
+  useEffect(() => {
+    if (pulse === 0) return;
+    const timer = window.setTimeout(() => setPulse(0), 700);
+    return () => window.clearTimeout(timer);
+  }, [pulse]);
+
+  function applySuggestion() {
+    if (!suggestion) return;
+    setDraft(draftFrom(suggestion.weight, suggestion.reps));
+    setError("");
+    setPulse((value) => value + 1);
+  }
 
   function readDraft(value: Draft): { weight: number; reps: number } | null {
     const weight = parseDecimal(value.weight);
@@ -100,7 +124,10 @@ export function ExerciseBlock({
         ) : (
           <ul className="mt-2 flex flex-wrap gap-2">
             {previous.map((set) => (
-              <li key={set.set_number} className="rounded-full bg-panel-2 px-3 py-1 text-sm tabular-nums">
+              <li
+                key={set.set_number}
+                className={`rounded-full px-3 py-1 text-sm tabular-nums ${source?.set_number === set.set_number ? "bg-lime/15 text-lime" : "bg-panel-2"}`}
+              >
                 {formatWeight(set.weight)} {uk.kg} × {set.reps}
               </li>
             ))}
@@ -112,15 +139,31 @@ export function ExerciseBlock({
         <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-lime/10 px-3 py-3">
           <p className="text-sm font-medium text-lime">
             {suggestion.kind === "weight"
-              ? fill(uk.workout.suggestWeight, { step: String(suggestion.step) })
-              : uk.workout.suggestReps}
+              ? fill(uk.workout.suggestWeight, {
+                step: formatWeight(suggestion.step),
+                weight: formatWeight(suggestion.weight),
+                reps: suggestion.reps,
+              })
+              : fill(uk.workout.suggestReps, {
+                step: suggestion.step,
+                weight: formatWeight(suggestion.weight),
+                reps: suggestion.reps,
+              })}
           </p>
           <button
             type="button"
             className="rounded-full bg-lime px-3 py-1.5 text-sm font-semibold text-ink"
-            onClick={() => setDraft(draftFrom(suggestion.weight, suggestion.reps))}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              applySuggestion();
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              applySuggestion();
+            }}
           >
-            {uk.workout.apply}
+            {applied ? uk.workout.applied : uk.workout.apply}
           </button>
         </div>
       ) : null}
@@ -192,6 +235,7 @@ export function ExerciseBlock({
           label={uk.workout.weight}
           value={draft.weight}
           step={0.5}
+          pulse={pulse > 0}
           onChange={(weight) => setDraft((current) => ({ ...current, weight }))}
         />
         <NumberStepper
@@ -199,6 +243,7 @@ export function ExerciseBlock({
           value={draft.reps}
           step={1}
           integer
+          pulse={pulse > 0}
           onChange={(reps) => setDraft((current) => ({ ...current, reps }))}
         />
       </div>
@@ -215,12 +260,14 @@ function NumberStepper({
   value,
   step,
   integer = false,
+  pulse = false,
   onChange,
 }: {
   label: string;
   value: string;
   step: number;
   integer?: boolean;
+  pulse?: boolean;
   onChange: (value: string) => void;
 }) {
   function bump(direction: number) {
@@ -237,7 +284,7 @@ function NumberStepper({
           −
         </button>
         <input
-          className={numberClass}
+          className={`${numberClass}${pulse ? " ring-2 ring-lime" : ""}`}
           inputMode={integer ? "numeric" : "decimal"}
           aria-label={label}
           value={value}

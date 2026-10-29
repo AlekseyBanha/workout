@@ -62,10 +62,15 @@ export function previousSessionSets(rows: HistorySet[], exerciseId: string, curr
     .map(({ set_number, weight, reps }) => ({ set_number, weight, reps }));
 }
 
-export function prefillForNextSet(previous: SetSnapshot[], nextSetNumber: number): { weight: number; reps: number } | null {
+export function previousSetFor(previous: SetSnapshot[], setNumber: number): SetSnapshot | null {
   if (previous.length === 0) return null;
   const sorted = [...previous].sort((a, b) => a.set_number - b.set_number);
-  return sorted.find((set) => set.set_number === nextSetNumber) ?? sorted[sorted.length - 1] ?? null;
+  return sorted.find((set) => set.set_number === setNumber) ?? sorted[sorted.length - 1] ?? null;
+}
+
+export function prefillForNextSet(previous: SetSnapshot[], nextSetNumber: number): { weight: number; reps: number } | null {
+  const match = previousSetFor(previous, nextSetNumber);
+  return match ? { weight: match.weight, reps: match.reps } : null;
 }
 
 export function suggestProgression(
@@ -73,25 +78,25 @@ export function suggestProgression(
   nextSetNumber: number,
   settings: ProgressionSettings,
 ): ProgressionSuggestion | null {
-  if (previous.length === 0) return null;
-  const sorted = [...previous].sort((a, b) => a.set_number - b.set_number);
-  const match = sorted.find((set) => set.set_number === nextSetNumber) ?? sorted[sorted.length - 1];
-  if (!match) return null;
+  const match = previousSetFor(previous, nextSetNumber);
+  if (!match || match.weight <= 0 || match.reps <= 0) return null;
 
-  if (previous.every((set) => set.reps >= settings.repMax)) {
+  const room = settings.repMax - match.reps;
+  if (room >= 1) {
+    const step = room >= 2 ? 2 : 1;
     return {
-      kind: "weight",
-      weight: Math.min(999, roundToHalf(match.weight + settings.weightStep)),
-      reps: match.reps,
-      step: settings.weightStep,
+      kind: "reps",
+      weight: match.weight,
+      reps: Math.min(100, match.reps + step),
+      step,
     };
   }
 
   return {
-    kind: "reps",
-    weight: match.weight,
-    reps: Math.min(100, match.reps + 1),
-    step: 1,
+    kind: "weight",
+    weight: Math.min(999, roundToHalf(match.weight + settings.weightStep)),
+    reps: Math.min(100, match.reps),
+    step: settings.weightStep,
   };
 }
 
@@ -100,14 +105,16 @@ export type ProgressPoint = {
   label: string;
   maxWeight: number;
   oneRm: number;
+  reps: number;
 };
 
 export function buildProgressPoints(sets: Array<{ performed_at: string; weight: number; reps: number }>, labelFor: (iso: string) => string): ProgressPoint[] {
-  const byDate = new Map<string, { maxWeight: number; oneRm: number }>();
+  const byDate = new Map<string, { maxWeight: number; oneRm: number; reps: number }>();
   for (const set of sets) {
-    const current = byDate.get(set.performed_at) ?? { maxWeight: 0, oneRm: 0 };
+    const current = byDate.get(set.performed_at) ?? { maxWeight: 0, oneRm: 0, reps: 0 };
     current.maxWeight = Math.max(current.maxWeight, set.weight);
     current.oneRm = Math.max(current.oneRm, epley1rm(set.weight, set.reps));
+    current.reps += set.reps;
     byDate.set(set.performed_at, current);
   }
   return [...byDate.entries()]
@@ -117,5 +124,6 @@ export function buildProgressPoints(sets: Array<{ performed_at: string; weight: 
       label: labelFor(date),
       maxWeight: Math.round(value.maxWeight * 10) / 10,
       oneRm: Math.round(value.oneRm * 10) / 10,
+      reps: value.reps,
     }));
 }

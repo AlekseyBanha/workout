@@ -106,6 +106,8 @@ export function ExerciseDetailPage() {
     rows.map((row) => ({ performed_at: row.performedAt, weight: row.weight, reps: row.reps })),
     formatChartDate,
   );
+  const minWeight = rows.reduce((min, row) => Math.min(min, row.weight), Number.POSITIVE_INFINITY);
+  const maxWeight = rows.reduce((max, row) => Math.max(max, row.weight), 0);
 
   if (phase === "loading") return <Loading />;
   if (phase === "error") return <ErrorState message={uk.detail.error} onRetry={() => setReload((value) => value + 1)} />;
@@ -129,9 +131,21 @@ export function ExerciseDetailPage() {
         {points.length === 0 ? (
           <p className="mt-3 text-sm text-muted">{uk.detail.empty}</p>
         ) : (
-          <Suspense fallback={<Loading />}>
-            <ProgressChart points={points} />
-          </Suspense>
+          <>
+            <dl className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-2xl bg-ink px-3 py-3">
+                <dt className="text-xs text-muted">{uk.detail.minWeight}</dt>
+                <dd className="mt-1 text-lg font-semibold tabular-nums">{formatWeight(minWeight)} {uk.kg}</dd>
+              </div>
+              <div className="rounded-2xl bg-ink px-3 py-3">
+                <dt className="text-xs text-muted">{uk.detail.maxWeight}</dt>
+                <dd className="mt-1 text-lg font-semibold tabular-nums">{formatWeight(maxWeight)} {uk.kg}</dd>
+              </div>
+            </dl>
+            <Suspense fallback={<Loading />}>
+              <ProgressChart points={points} />
+            </Suspense>
+          </>
         )}
       </section>
       <section className="space-y-3">

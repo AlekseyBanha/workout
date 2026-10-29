@@ -11,6 +11,11 @@ import { ConfirmDialog, ErrorState, fieldClass, Loading, secondaryButton, useTit
 import { ExerciseBlock } from "./ExerciseBlock.tsx";
 import { ExercisePicker } from "./ExercisePicker.tsx";
 
+function mergeHistory(current: HistorySet[], incoming: HistorySet[], exerciseIds: string[]): HistorySet[] {
+  const replace = new Set(exerciseIds);
+  return [...current.filter((row) => !replace.has(row.exercise_id)), ...incoming];
+}
+
 function parseHistory(value: unknown): HistorySet[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((row) => {
@@ -119,7 +124,7 @@ export function WorkoutEditor({ id }: { id: string }) {
       setSets(nextSets);
       setExercises(asList(exerciseRes.data, asExercise));
       setCatalog(asList(catalogRes.data, asExercise));
-      setHistory(parseHistory(historyRes.data));
+      setHistory((existing) => mergeHistory(existing, parseHistory(historyRes.data), ids));
       if (reload === 0) setNote(current.note ?? "");
       setPhase("ready");
     }
@@ -163,6 +168,18 @@ export function WorkoutEditor({ id }: { id: string }) {
       }];
     });
   }, [catalog, exercises, history, pending, sets, workout]);
+
+  async function loadExerciseHistory(exerciseId: string) {
+    if (!supabase || !workout) return;
+    const { data, error: historyError } = await supabase
+      .from("workout_sets")
+      .select("exercise_id, weight, reps, set_number, workout_id, workouts!inner(performed_at, created_at)")
+      .eq("user_id", workout.user_id)
+      .eq("exercise_id", exerciseId)
+      .neq("workout_id", workout.id);
+    if (historyError) return;
+    setHistory((current) => mergeHistory(current, parseHistory(data), [exerciseId]));
+  }
 
   async function addSet(exerciseId: string, weight: number, reps: number) {
     if (!supabase || !profile || !workout) return false;
@@ -365,6 +382,7 @@ export function WorkoutEditor({ id }: { id: string }) {
           onPick={(exercise) => {
             setPending((current) => current.some((item) => item.id === exercise.id) ? current : [...current, exercise]);
             setPickerOpen(false);
+            void loadExerciseHistory(exercise.id);
           }}
         />
       ) : null}
