@@ -5,6 +5,7 @@ import { useAuth } from "../../lib/auth.tsx";
 import { addDays, formatDate, isISODate, previousMonthRange, startOfMonth, todayISO } from "../../lib/dates.ts";
 import { supabase } from "../../lib/supabase.ts";
 import { asList, asStringRecord } from "../../lib/types.ts";
+import { IconChevron } from "../icons.tsx";
 import { cx, EmptyState, ErrorState, fieldClass, Loading, primaryButton, secondaryButton, useTitle } from "../ui.tsx";
 
 const RANGE_KEY = "workout-range";
@@ -471,15 +472,18 @@ export function WorkoutHome() {
             <li key={item.id}>
               <button
                 type="button"
-                className="w-full rounded-3xl border border-line bg-panel px-4 py-3 text-left"
+                className="flex w-full items-center gap-3 rounded-3xl border border-line bg-panel px-4 py-3 text-left"
                 onClick={() => navigate(`/workout/${item.id}`)}
               >
-                <span className={cx("block", item.title ? "text-sm text-muted" : "font-medium")}>
-                  {formatDate(item.performed_at)}
+                <span className="min-w-0 flex-1">
+                  <span className={cx("block", item.title ? "text-sm text-muted" : "font-medium")}>
+                    {formatDate(item.performed_at)}
+                  </span>
+                  {item.title ? <span className="mt-0.5 block font-medium">{item.title}</span> : null}
+                  {item.exercises.length > 0 ? <span className="mt-1 block text-sm">{item.exercises.join(", ")}</span> : null}
+                  <span className="mt-1 block text-sm text-muted">{fill(uk.workout.setsCount, { sets: item.setCount })}</span>
                 </span>
-                {item.title ? <span className="mt-0.5 block font-medium">{item.title}</span> : null}
-                {item.exercises.length > 0 ? <span className="mt-1 block text-sm">{item.exercises.join(", ")}</span> : null}
-                <span className="mt-1 block text-sm text-muted">{fill(uk.workout.setsCount, { sets: item.setCount })}</span>
+                <IconChevron className="h-5 w-5 shrink-0 text-muted" />
               </button>
             </li>
           ))}

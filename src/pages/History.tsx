@@ -4,7 +4,8 @@ import { fill, uk } from "../i18n/uk.ts";
 import { formatDate } from "../lib/dates.ts";
 import { supabase } from "../lib/supabase.ts";
 import { asList, asStringRecord, asWorkout } from "../lib/types.ts";
-import { EmptyState, ErrorState, Loading, useTitle } from "../components/ui.tsx";
+import { IconChevron } from "../components/icons.tsx";
+import { EmptyState, ErrorState, Loading, primaryButton, useTitle } from "../components/ui.tsx";
 
 type HistoryItem = {
   id: string;
@@ -69,7 +70,7 @@ export function HistoryPage() {
         <EmptyState
           title={uk.history.empty}
           text={uk.history.emptyHint}
-          action={<Link to="/workout" className="text-lime">{uk.history.start}</Link>}
+          action={<Link to="/workout" className={`${primaryButton} w-auto px-5`}>{uk.history.start}</Link>}
         />
       ) : null}
       {phase === "ready" ? (
@@ -80,11 +81,14 @@ export function HistoryPage() {
             return (
               <li key={item.id}>
                 {showDate ? <p className="mb-2 mt-3 text-sm text-muted">{formatDate(item.performed_at)}</p> : null}
-                <Link to={`/workout/${item.id}`} className="block rounded-3xl border border-line bg-panel px-4 py-3">
-                  <span className="text-sm text-muted">
-                    {fill(uk.workout.summary, { exercises: item.exerciseCount, sets: item.setCount })}
+                <Link to={`/workout/${item.id}`} className="flex items-center gap-3 rounded-3xl border border-line bg-panel px-4 py-3">
+                  <span className="min-w-0 flex-1">
+                    <span className="text-sm text-muted">
+                      {fill(uk.workout.summary, { exercises: item.exerciseCount, sets: item.setCount })}
+                    </span>
+                    {item.note ? <span className="mt-1 block">{item.note}</span> : null}
                   </span>
-                  {item.note ? <span className="mt-1 block">{item.note}</span> : null}
+                  <IconChevron className="h-5 w-5 shrink-0 text-muted" />
                 </Link>
               </li>
             );

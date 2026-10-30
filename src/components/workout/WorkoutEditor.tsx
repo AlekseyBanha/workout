@@ -7,7 +7,7 @@ import { previousSessionSets, type HistorySet, type ProgressionSettings } from "
 import { loadProgressionSettings, saveProgressionSettings } from "../../lib/settings.ts";
 import { supabase } from "../../lib/supabase.ts";
 import { asExercise, asList, asSet, asStringRecord, asWorkout, type Exercise, type Workout, type WorkoutSet } from "../../lib/types.ts";
-import { ConfirmDialog, ErrorState, fieldClass, Loading, secondaryButton, useTitle } from "../ui.tsx";
+import { BackButton, ConfirmDialog, dangerOutline, ErrorState, fieldClass, Loading, secondaryButton, useTitle } from "../ui.tsx";
 import { ExerciseBlock } from "./ExerciseBlock.tsx";
 import { ExercisePicker } from "./ExercisePicker.tsx";
 
@@ -314,9 +314,7 @@ export function WorkoutEditor({ id }: { id: string }) {
 
   return (
     <div className="space-y-4">
-      <button type="button" className="text-sm text-muted" onClick={goBack}>
-        {uk.back}
-      </button>
+      <BackButton onClick={goBack} />
       <h1 className="text-2xl font-semibold">{uk.workout.title}</h1>
       <label className="block">
         <span className="mb-1.5 block text-sm text-muted">{uk.workout.date}</span>
@@ -403,7 +401,7 @@ export function WorkoutEditor({ id }: { id: string }) {
         </div>
         {settingsError ? <p className="mt-2 text-sm text-danger">{settingsError}</p> : null}
       </details>
-      <button type="button" className="text-sm text-danger" onClick={() => setDeleteOpen(true)}>
+      <button type="button" className={dangerOutline} onClick={() => setDeleteOpen(true)}>
         {uk.workout.deleteWorkout}
       </button>
       {pickerOpen ? (

@@ -2,7 +2,7 @@ import { NavLink, Outlet, useLocation } from "react-router";
 import { uk } from "../i18n/uk.ts";
 import { useAuth } from "../lib/auth.tsx";
 import { IconAdmin, IconCatalog, IconHistory, IconWorkout } from "./icons.tsx";
-import { cx, Logo, quietButton } from "./ui.tsx";
+import { cx, Logo } from "./ui.tsx";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   cx(
@@ -23,7 +23,7 @@ export function Layout() {
             <Logo />
             <span className="font-semibold">{uk.appName}</span>
           </div>
-          <button type="button" className={quietButton} onClick={() => void signOut()}>
+          <button type="button" className="inline-flex h-9 items-center rounded-full border border-line bg-panel px-3 text-sm font-medium" onClick={() => void signOut()}>
             {uk.logout}
           </button>
         </div>

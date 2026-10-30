@@ -1,5 +1,7 @@
 import { useEffect, type ReactNode } from "react";
+import { Link } from "react-router";
 import { uk } from "../i18n/uk.ts";
+import { IconBack, IconClose } from "./icons.tsx";
 
 export const primaryButton =
   "inline-flex h-12 w-full items-center justify-center rounded-2xl bg-lime px-4 text-base font-semibold text-ink transition active:scale-[0.98] disabled:opacity-50";
@@ -10,8 +12,20 @@ export const secondaryButton =
 export const dangerButton =
   "inline-flex h-11 items-center justify-center rounded-2xl bg-danger px-4 text-sm font-semibold text-white disabled:opacity-50";
 
-export const quietButton =
-  "inline-flex h-10 items-center justify-center rounded-xl px-3 text-sm font-medium text-muted";
+export const backButton =
+  "inline-flex h-10 items-center gap-0.5 rounded-full border border-line bg-panel pl-2 pr-3.5 text-sm font-medium text-white transition active:scale-[0.98]";
+
+export const chipButton =
+  "inline-flex h-8 items-center justify-center rounded-full border border-line bg-ink px-3 text-sm font-medium text-white transition active:scale-[0.98] disabled:opacity-50";
+
+export const chipDanger =
+  "inline-flex h-8 items-center justify-center rounded-full border border-danger/40 px-3 text-sm font-medium text-danger transition active:scale-[0.98] disabled:opacity-50";
+
+export const dangerOutline =
+  "inline-flex h-12 w-full items-center justify-center rounded-2xl border border-danger/40 bg-danger/10 px-4 text-base font-medium text-danger transition active:scale-[0.98] disabled:opacity-50";
+
+export const iconButton =
+  "inline-flex h-10 w-10 items-center justify-center rounded-full border border-line bg-ink text-white transition active:scale-[0.98]";
 
 export const fieldClass =
   "h-12 w-full rounded-xl border border-line bg-ink px-3 text-base text-white outline-none placeholder:text-muted focus:border-lime";
@@ -21,6 +35,21 @@ export const numberClass =
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
+}
+
+export function BackButton({ onClick, to }: { onClick?: () => void; to?: string }) {
+  const content = (
+    <>
+      <IconBack />
+      {uk.back}
+    </>
+  );
+  if (to) return <Link to={to} className={backButton}>{content}</Link>;
+  return (
+    <button type="button" className={backButton} onClick={onClick}>
+      {content}
+    </button>
+  );
 }
 
 export function useTitle(title: string) {
@@ -102,8 +131,8 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button type="button" className={quietButton} onClick={onClose}>
-            {uk.close}
+          <button type="button" className={iconButton} aria-label={uk.close} onClick={onClose}>
+            <IconClose />
           </button>
         </div>
         {children}

@@ -10,7 +10,7 @@ import {
   type SetSnapshot,
 } from "../../lib/progression.ts";
 import type { Exercise, WorkoutSet } from "../../lib/types.ts";
-import { fieldClass, numberClass, primaryButton, quietButton } from "../ui.tsx";
+import { chipButton, chipDanger, fieldClass, numberClass, primaryButton } from "../ui.tsx";
 
 type Draft = { weight: string; reps: string };
 
@@ -112,7 +112,7 @@ export function ExerciseBlock({
           <h3 className="text-lg font-semibold">{exercise.name}</h3>
           {exercise.muscle_group ? <p className="text-sm text-muted">{exercise.muscle_group}</p> : null}
         </div>
-        <button type="button" className={quietButton} onClick={onRemove}>
+        <button type="button" className={chipDanger} onClick={onRemove}>
           {uk.workout.removeExercise}
         </button>
       </div>
@@ -208,10 +208,10 @@ export function ExerciseBlock({
                   <span className="mr-2 text-muted">{set.set_number}</span>
                   {formatWeight(set.weight)} {uk.kg} × {set.reps}
                 </p>
-                <div className="flex">
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    className={quietButton}
+                    className={chipButton}
                     onClick={() => {
                       setEditingId(set.id);
                       setEditDraft(draftFrom(set.weight, set.reps));
@@ -220,7 +220,7 @@ export function ExerciseBlock({
                   >
                     {uk.edit}
                   </button>
-                  <button type="button" className={`${quietButton} text-danger`} onClick={() => void onDelete(set)}>
+                  <button type="button" className={chipDanger} onClick={() => void onDelete(set)}>
                     {uk.delete}
                   </button>
                 </div>

@@ -1,12 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { uk } from "../i18n/uk.ts";
 import { formatChartDate, formatDate } from "../lib/dates.ts";
 import { formatWeight } from "../lib/numbers.ts";
 import { buildProgressPoints } from "../lib/progression.ts";
 import { exerciseImageUrl, supabase } from "../lib/supabase.ts";
 import { asExercise, asStringRecord } from "../lib/types.ts";
-import { ErrorState, ExerciseThumb, Loading, useTitle } from "../components/ui.tsx";
+import { BackButton, ErrorState, ExerciseThumb, Loading, useTitle } from "../components/ui.tsx";
 
 const ProgressChart = lazy(() => import("../components/ProgressChart.tsx"));
 
@@ -115,7 +115,7 @@ export function ExerciseDetailPage() {
 
   return (
     <div className="space-y-4">
-      <Link to="/exercises" className="text-sm text-muted">{uk.back}</Link>
+      <BackButton to="/exercises" />
       <div className="overflow-hidden rounded-3xl border border-line bg-panel">
         <div className="aspect-[4/3]">
           <ExerciseThumb src={image} alt={name} />

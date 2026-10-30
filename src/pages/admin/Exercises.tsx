@@ -7,6 +7,8 @@ import { exerciseImageUrl, supabase } from "../../lib/supabase.ts";
 import { asExercise, asList, type Exercise } from "../../lib/types.ts";
 import { useAuth } from "../../lib/auth.tsx";
 import {
+  chipButton,
+  chipDanger,
   ConfirmDialog,
   EmptyState,
   ErrorState,
@@ -273,9 +275,9 @@ export function AdminExercisesPage() {
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{exercise.name}</span>
                 <span className="block text-sm text-muted">{exercise.muscle_group ?? uk.muscles.none}</span>
-                <span className="mt-2 flex gap-3 text-sm">
-                  <button type="button" className="text-lime" onClick={() => openEdit(exercise)}>{uk.edit}</button>
-                  <button type="button" className="text-danger" onClick={() => { setFormError(""); setDeleteTarget(exercise); }}>{uk.delete}</button>
+                <span className="mt-2 flex gap-2">
+                  <button type="button" className={chipButton} onClick={() => openEdit(exercise)}>{uk.edit}</button>
+                  <button type="button" className={chipDanger} onClick={() => { setFormError(""); setDeleteTarget(exercise); }}>{uk.delete}</button>
                 </span>
               </span>
             </li>

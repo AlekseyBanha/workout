@@ -7,6 +7,8 @@ import { formatDate } from "../../lib/dates.ts";
 import { supabase } from "../../lib/supabase.ts";
 import { asList, asProfile, type Profile, type Role } from "../../lib/types.ts";
 import {
+  chipButton,
+  chipDanger,
   ConfirmDialog,
   ErrorState,
   Field,
@@ -182,10 +184,10 @@ export function AdminUsersPage() {
                   <td className="px-3 py-3">{user.role === "admin" ? uk.admin.roleAdmin : uk.admin.roleUser}</td>
                   <td className="px-3 py-3">{formatDate(user.created_at.slice(0, 10))}</td>
                   <td className="px-3 py-3">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        className="text-lime"
+                        className={chipButton}
                         onClick={() => {
                           setResetTarget(user);
                           setNextPassword("");
@@ -197,7 +199,7 @@ export function AdminUsersPage() {
                       </button>
                       <button
                         type="button"
-                        className="text-danger"
+                        className={chipDanger}
                         onClick={() => {
                           if (user.id === profile?.id) {
                             setFormError(uk.admin.cannotDeleteSelf);
