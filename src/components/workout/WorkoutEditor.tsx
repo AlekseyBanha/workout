@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { uk } from "../../i18n/uk.ts";
 import { useAuth } from "../../lib/auth.tsx";
 import { isHalfStep } from "../../lib/numbers.ts";
@@ -47,6 +47,7 @@ function parseHistory(value: unknown): HistorySet[] {
 
 export function WorkoutEditor({ id }: { id: string }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile } = useAuth();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [sets, setSets] = useState<WorkoutSet[]>([]);
@@ -54,6 +55,7 @@ export function WorkoutEditor({ id }: { id: string }) {
   const [catalog, setCatalog] = useState<Exercise[]>([]);
   const [history, setHistory] = useState<HistorySet[]>([]);
   const [pending, setPending] = useState<Exercise[]>([]);
+  const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [phase, setPhase] = useState<"loading" | "error" | "missing" | "ready">("loading");
   const [reload, setReload] = useState(0);
@@ -65,6 +67,7 @@ export function WorkoutEditor({ id }: { id: string }) {
   const [settings, setSettings] = useState<ProgressionSettings>(loadProgressionSettings);
   const [settingsError, setSettingsError] = useState("");
   const noteReady = useRef(false);
+  const titleReady = useRef(false);
   useTitle(uk.workout.title);
 
   useEffect(() => {
@@ -75,7 +78,7 @@ export function WorkoutEditor({ id }: { id: string }) {
     async function load() {
       const client = supabase;
       if (!client) return;
-      const workoutRes = await client.from("workouts").select("id, user_id, performed_at, note, created_at").eq("id", id).maybeSingle();
+      const workoutRes = await client.from("workouts").select("id, user_id, performed_at, title, note, created_at").eq("id", id).maybeSingle();
       if (!active) return;
       if (workoutRes.error) {
         setPhase("error");
@@ -125,7 +128,10 @@ export function WorkoutEditor({ id }: { id: string }) {
       setExercises(asList(exerciseRes.data, asExercise));
       setCatalog(asList(catalogRes.data, asExercise));
       setHistory((existing) => mergeHistory(existing, parseHistory(historyRes.data), ids));
-      if (reload === 0) setNote(current.note ?? "");
+      if (reload === 0) {
+        setNote(current.note ?? "");
+        setTitle(current.title ?? "");
+      }
       setPhase("ready");
     }
 
@@ -146,6 +152,18 @@ export function WorkoutEditor({ id }: { id: string }) {
     }, 500);
     return () => window.clearTimeout(timer);
   }, [note, phase, id]);
+
+  useEffect(() => {
+    if (phase !== "ready" || !supabase) return;
+    if (!titleReady.current) {
+      titleReady.current = true;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void supabase?.from("workouts").update({ title: title.trim() || null }).eq("id", id);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [title, phase, id]);
 
   const blocks = useMemo(() => {
     const known = new Map<string, Exercise>();
@@ -282,7 +300,12 @@ export function WorkoutEditor({ id }: { id: string }) {
       setDeleteOpen(false);
       return;
     }
-    navigate("/workout");
+    goBack();
+  }
+
+  function goBack() {
+    if (location.key === "default") navigate("/workout");
+    else navigate(-1);
   }
 
   if (phase === "loading") return <Loading />;
@@ -291,13 +314,22 @@ export function WorkoutEditor({ id }: { id: string }) {
 
   return (
     <div className="space-y-4">
-      <button type="button" className="text-sm text-muted" onClick={() => navigate("/workout")}>
+      <button type="button" className="text-sm text-muted" onClick={goBack}>
         {uk.back}
       </button>
       <h1 className="text-2xl font-semibold">{uk.workout.title}</h1>
       <label className="block">
         <span className="mb-1.5 block text-sm text-muted">{uk.workout.date}</span>
         <input className={fieldClass} type="date" value={workout.performed_at} onChange={(event) => void changeDate(event.target.value)} />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-sm text-muted">{uk.workout.workoutName}</span>
+        <input
+          className={fieldClass}
+          value={title}
+          placeholder={uk.workout.workoutNamePlaceholder}
+          onChange={(event) => setTitle(event.target.value)}
+        />
       </label>
       <label className="block">
         <span className="mb-1.5 block text-sm text-muted">{uk.workout.note}</span>

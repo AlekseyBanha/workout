@@ -57,7 +57,7 @@ export function Layout() {
             <IconCatalog />
             {uk.nav.exercises}
           </NavLink>
-          <NavLink to="/workout" className={linkClass}>
+          <NavLink to={location.pathname === "/workout" ? `/workout${location.search}` : "/workout"} className={linkClass}>
             <IconWorkout />
             {uk.nav.workout}
           </NavLink>

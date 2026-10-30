@@ -22,6 +22,7 @@ export type Workout = {
   id: string;
   user_id: string;
   performed_at: string;
+  title: string | null;
   note: string | null;
   created_at: string;
 };
@@ -103,6 +104,7 @@ export function asWorkout(value: unknown): Workout | null {
     id,
     user_id: userId,
     performed_at: performedAt,
+    title: asString(row.title),
     note: asString(row.note),
     created_at: createdAt,
   };
