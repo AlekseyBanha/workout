@@ -4,6 +4,7 @@ import { uk } from "../../i18n/uk.ts";
 import { useAuth } from "../../lib/auth.tsx";
 import { isHalfStep } from "../../lib/numbers.ts";
 import { previousSessionSets, type HistorySet, type ProgressionSettings } from "../../lib/progression.ts";
+import { repeatWorkout } from "../../lib/repeat-workout.ts";
 import { loadProgressionSettings, saveProgressionSettings } from "../../lib/settings.ts";
 import { supabase } from "../../lib/supabase.ts";
 import { asExercise, asList, asSet, asStringRecord, asWorkout, type Exercise, type Workout, type WorkoutSet } from "../../lib/types.ts";
@@ -60,6 +61,7 @@ export function WorkoutEditor({ id }: { id: string }) {
   const [phase, setPhase] = useState<"loading" | "error" | "missing" | "ready">("loading");
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [repeating, setRepeating] = useState(false);
   const [error, setError] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Exercise | null>(null);
@@ -303,6 +305,19 @@ export function WorkoutEditor({ id }: { id: string }) {
     goBack();
   }
 
+  async function repeatThis() {
+    if (!profile || repeating || sets.length === 0) return;
+    setRepeating(true);
+    setError("");
+    const result = await repeatWorkout(profile.id, id);
+    setRepeating(false);
+    if (!result.ok) {
+      setError(result.reason === "empty" ? uk.workout.noSets : uk.workout.saveError);
+      return;
+    }
+    navigate(`/workout/${result.id}`);
+  }
+
   function goBack() {
     if (location.key === "default") navigate("/workout");
     else navigate(-1);
@@ -338,6 +353,14 @@ export function WorkoutEditor({ id }: { id: string }) {
           onChange={(event) => setNote(event.target.value)}
         />
       </label>
+      <button
+        type="button"
+        className={secondaryButton}
+        disabled={repeating || busy || sets.length === 0}
+        onClick={() => void repeatThis()}
+      >
+        {repeating ? uk.workout.repeating : uk.workout.repeatThis}
+      </button>
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       {blocks.map((block) => (
         <ExerciseBlock

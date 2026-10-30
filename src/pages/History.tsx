@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { fill, uk } from "../i18n/uk.ts";
+import { useAuth } from "../lib/auth.tsx";
 import { formatDate } from "../lib/dates.ts";
+import { repeatWorkout } from "../lib/repeat-workout.ts";
 import { supabase } from "../lib/supabase.ts";
 import { asList, asStringRecord, asWorkout } from "../lib/types.ts";
 import { IconChevron } from "../components/icons.tsx";
-import { EmptyState, ErrorState, Loading, primaryButton, useTitle } from "../components/ui.tsx";
+import { chipButton, EmptyState, ErrorState, Loading, primaryButton, useTitle } from "../components/ui.tsx";
 
 type HistoryItem = {
   id: string;
@@ -16,10 +18,27 @@ type HistoryItem = {
 };
 
 export function HistoryPage() {
+  const navigate = useNavigate();
+  const { profile } = useAuth();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [phase, setPhase] = useState<"loading" | "error" | "ready">("loading");
   const [reload, setReload] = useState(0);
+  const [repeatingId, setRepeatingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
   useTitle(uk.history.title);
+
+  async function repeat(id: string) {
+    if (!profile || repeatingId) return;
+    setRepeatingId(id);
+    setActionError("");
+    const result = await repeatWorkout(profile.id, id);
+    setRepeatingId(null);
+    if (!result.ok) {
+      setActionError(result.reason === "empty" ? uk.workout.noSets : uk.workout.saveError);
+      return;
+    }
+    navigate(`/workout/${result.id}`);
+  }
 
   useEffect(() => {
     if (!supabase) return;
@@ -64,6 +83,7 @@ export function HistoryPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">{uk.history.title}</h1>
+      {actionError ? <p className="text-sm text-danger">{actionError}</p> : null}
       {phase === "loading" ? <Loading /> : null}
       {phase === "error" ? <ErrorState message={uk.history.error} onRetry={() => setReload((value) => value + 1)} /> : null}
       {phase === "ready" && items.length === 0 ? (
@@ -81,15 +101,25 @@ export function HistoryPage() {
             return (
               <li key={item.id}>
                 {showDate ? <p className="mb-2 mt-3 text-sm text-muted">{formatDate(item.performed_at)}</p> : null}
-                <Link to={`/workout/${item.id}`} className="flex items-center gap-3 rounded-3xl border border-line bg-panel px-4 py-3">
-                  <span className="min-w-0 flex-1">
-                    <span className="text-sm text-muted">
-                      {fill(uk.workout.summary, { exercises: item.exerciseCount, sets: item.setCount })}
+                <div className="flex items-center gap-2 rounded-3xl border border-line bg-panel px-4 py-3">
+                  <Link to={`/workout/${item.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className="min-w-0 flex-1">
+                      <span className="text-sm text-muted">
+                        {fill(uk.workout.summary, { exercises: item.exerciseCount, sets: item.setCount })}
+                      </span>
+                      {item.note ? <span className="mt-1 block">{item.note}</span> : null}
                     </span>
-                    {item.note ? <span className="mt-1 block">{item.note}</span> : null}
-                  </span>
-                  <IconChevron className="h-5 w-5 shrink-0 text-muted" />
-                </Link>
+                    <IconChevron className="h-5 w-5 shrink-0 text-muted" />
+                  </Link>
+                  <button
+                    type="button"
+                    className={`${chipButton} shrink-0`}
+                    disabled={repeatingId !== null || !profile || item.setCount === 0}
+                    onClick={() => void repeat(item.id)}
+                  >
+                    {repeatingId === item.id ? uk.workout.repeating : uk.workout.repeatOne}
+                  </button>
+                </div>
               </li>
             );
           })}

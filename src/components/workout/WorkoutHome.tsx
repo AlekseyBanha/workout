@@ -3,10 +3,11 @@ import { useNavigate, useSearchParams } from "react-router";
 import { fill, uk } from "../../i18n/uk.ts";
 import { useAuth } from "../../lib/auth.tsx";
 import { addDays, formatDate, isISODate, previousMonthRange, startOfMonth, todayISO } from "../../lib/dates.ts";
+import { repeatLatestWorkout, repeatWorkout } from "../../lib/repeat-workout.ts";
 import { supabase } from "../../lib/supabase.ts";
 import { asList, asStringRecord } from "../../lib/types.ts";
 import { IconChevron } from "../icons.tsx";
-import { cx, EmptyState, ErrorState, fieldClass, Loading, primaryButton, secondaryButton, useTitle } from "../ui.tsx";
+import { chipButton, cx, EmptyState, ErrorState, fieldClass, Loading, primaryButton, secondaryButton, useTitle } from "../ui.tsx";
 
 const RANGE_KEY = "workout-range";
 const PRESET_KEYS = ["month", "last", "d7", "d30"] as const;
@@ -26,14 +27,6 @@ type ListedWorkout = {
   title: string | null;
   exercises: string[];
   setCount: number;
-};
-
-type CopySet = {
-  exercise_id: string;
-  set_number: number;
-  weight: number;
-  reps: number;
-  created_at: string;
 };
 
 function isPresetKey(value: unknown): value is PresetKey {
@@ -143,41 +136,6 @@ function listedWorkout(value: unknown): ListedWorkout | null {
   };
 }
 
-function asCopySet(value: unknown): CopySet | null {
-  const row = asStringRecord(value);
-  if (!row || typeof row.exercise_id !== "string") return null;
-  const setNumber = finiteNumber(row.set_number);
-  const weight = finiteNumber(row.weight);
-  const reps = finiteNumber(row.reps);
-  if (setNumber === null || weight === null || reps === null) return null;
-  if (!Number.isInteger(setNumber) || setNumber <= 0 || weight <= 0 || !Number.isInteger(reps) || reps <= 0) return null;
-  return {
-    exercise_id: row.exercise_id,
-    set_number: setNumber,
-    weight,
-    reps,
-    created_at: typeof row.created_at === "string" ? row.created_at : "",
-  };
-}
-
-function groupCopiedSets(sets: CopySet[]): CopySet[][] {
-  const sorted = [...sets].sort((a, b) => {
-    if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1;
-    return a.set_number - b.set_number;
-  });
-  const order: string[] = [];
-  const grouped = new Map<string, CopySet[]>();
-  for (const set of sorted) {
-    const list = grouped.get(set.exercise_id);
-    if (list) list.push(set);
-    else {
-      order.push(set.exercise_id);
-      grouped.set(set.exercise_id, [set]);
-    }
-  }
-  return order.map((id) => (grouped.get(id) ?? []).sort((a, b) => a.set_number - b.set_number));
-}
-
 function activePreset(presets: Array<{ key: PresetKey; from: string; to: string }>, from: string, to: string, preferred: PresetKey | null): PresetKey | null {
   const matches = presets.filter((item) => item.from === from && item.to === to);
   if (preferred && matches.some((item) => item.key === preferred)) return preferred;
@@ -196,7 +154,7 @@ export function WorkoutHome() {
   const [phase, setPhase] = useState<"loading" | "error" | "ready">("loading");
   const [todayId, setTodayId] = useState<string | null>(null);
   const [todayReady, setTodayReady] = useState(false);
-  const [pending, setPending] = useState<"start" | "repeat" | null>(null);
+  const [pending, setPending] = useState<"start" | "latest" | string | null>(null);
   const [actionError, setActionError] = useState("");
   const [reload, setReload] = useState(0);
   const lock = useRef(false);
@@ -329,69 +287,19 @@ export function WorkoutHome() {
     navigate(`/workout/${createdRow.id}`);
   }
 
-  async function repeatLast() {
-    if (lock.current || !supabase || !profile) return;
+  async function repeatFrom(sourceId: string | null) {
+    if (lock.current || !profile) return;
     lock.current = true;
-    setPending("repeat");
+    setPending(sourceId ?? "latest");
     setActionError("");
-    const source = await supabase
-      .from("workouts")
-      .select("id, title, workout_sets!inner(exercise_id, set_number, weight, reps, created_at)")
-      .eq("user_id", profile.id)
-      .order("performed_at", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(1);
-    const sourceRow = asStringRecord(Array.isArray(source.data) ? source.data[0] : null);
-    const copied = sourceRow && Array.isArray(sourceRow.workout_sets) ? sourceRow.workout_sets.flatMap((item) => {
-      const set = asCopySet(item);
-      return set ? [set] : [];
-    }) : [];
-    if (source.error) {
-      lock.current = false;
-      setPending(null);
-      setActionError(uk.workout.saveError);
-      return;
-    }
-    if (!sourceRow || copied.length === 0) {
-      lock.current = false;
-      setPending(null);
-      setActionError(uk.workout.noPrevious);
-      return;
-    }
-    const title = typeof sourceRow.title === "string" && sourceRow.title.trim() ? sourceRow.title.trim() : null;
-    const created = await supabase
-      .from("workouts")
-      .insert({ user_id: profile.id, performed_at: todayISO(), title })
-      .select("id")
-      .single();
-    const createdRow = asStringRecord(created.data);
-    if (created.error || !createdRow || typeof createdRow.id !== "string") {
-      lock.current = false;
-      setPending(null);
-      setActionError(uk.workout.saveError);
-      return;
-    }
-    const groups = groupCopiedSets(copied);
-    for (const group of groups) {
-      const inserted = await supabase.from("workout_sets").insert(group.map((set) => ({
-        workout_id: createdRow.id,
-        user_id: profile.id,
-        exercise_id: set.exercise_id,
-        set_number: set.set_number,
-        weight: set.weight,
-        reps: set.reps,
-      })));
-      if (inserted.error) {
-        await supabase.from("workouts").delete().eq("id", createdRow.id);
-        lock.current = false;
-        setPending(null);
-        setActionError(uk.workout.saveError);
-        return;
-      }
-    }
+    const result = sourceId ? await repeatWorkout(profile.id, sourceId) : await repeatLatestWorkout(profile.id);
     lock.current = false;
     setPending(null);
-    navigate(`/workout/${createdRow.id}`);
+    if (!result.ok) {
+      setActionError(result.reason === "save" || result.reason === "config" ? uk.workout.saveError : sourceId ? uk.workout.noSets : uk.workout.noPrevious);
+      return;
+    }
+    navigate(`/workout/${result.id}`);
   }
 
   const startLabel = todayId
@@ -416,9 +324,9 @@ export function WorkoutHome() {
           type="button"
           className={secondaryButton}
           disabled={pending !== null || !profile}
-          onClick={() => void repeatLast()}
+          onClick={() => void repeatFrom(null)}
         >
-          {pending === "repeat" ? uk.workout.repeating : uk.workout.repeat}
+          {pending === "latest" ? uk.workout.repeating : uk.workout.repeat}
         </button>
       </div>
       {actionError ? <p className="text-sm text-danger">{actionError}</p> : null}
@@ -469,10 +377,10 @@ export function WorkoutHome() {
       {!rangeInvalid && phase === "ready" && items.length > 0 ? (
         <ul className="space-y-2">
           {items.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} className="flex items-center gap-2 rounded-3xl border border-line bg-panel px-4 py-3">
               <button
                 type="button"
-                className="flex w-full items-center gap-3 rounded-3xl border border-line bg-panel px-4 py-3 text-left"
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
                 onClick={() => navigate(`/workout/${item.id}`)}
               >
                 <span className="min-w-0 flex-1">
@@ -484,6 +392,14 @@ export function WorkoutHome() {
                   <span className="mt-1 block text-sm text-muted">{fill(uk.workout.setsCount, { sets: item.setCount })}</span>
                 </span>
                 <IconChevron className="h-5 w-5 shrink-0 text-muted" />
+              </button>
+              <button
+                type="button"
+                className={`${chipButton} shrink-0`}
+                disabled={pending !== null || !profile || item.setCount === 0}
+                onClick={() => void repeatFrom(item.id)}
+              >
+                {pending === item.id ? uk.workout.repeating : uk.workout.repeatOne}
               </button>
             </li>
           ))}
