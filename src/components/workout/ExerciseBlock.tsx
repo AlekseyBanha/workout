@@ -108,11 +108,11 @@ export function ExerciseBlock({
   return (
     <section className="rounded-3xl border border-line bg-panel p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h3 className="text-lg font-semibold">{exercise.name}</h3>
           {exercise.muscle_group ? <p className="text-sm text-muted">{exercise.muscle_group}</p> : null}
         </div>
-        <button type="button" className={chipDanger} onClick={onRemove}>
+        <button type="button" className={`${chipDanger} shrink-0 whitespace-nowrap`} onClick={onRemove}>
           {uk.workout.removeExercise}
         </button>
       </div>
