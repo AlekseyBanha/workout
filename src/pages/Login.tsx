@@ -53,7 +53,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-4 py-10">
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto flex min-h-full w-full max-w-lg flex-col justify-center px-4 py-10">
       <div className="mb-8 flex items-center gap-3">
         <Logo className="h-12 w-12" />
         <div>
@@ -92,6 +93,7 @@ export function LoginPage() {
           {busy ? uk.login.submitting : uk.login.submit}
         </button>
       </form>
+      </div>
     </div>
   );
 }

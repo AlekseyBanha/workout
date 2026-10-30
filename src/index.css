@@ -13,12 +13,17 @@
 }
 
 html {
+  height: 100dvh;
+  overflow: hidden;
   color-scheme: dark;
+  background: var(--color-ink);
 }
 
 body {
   margin: 0;
-  min-height: 100dvh;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   background:
     radial-gradient(ellipse 80% 42% at 50% -12%, rgb(214 255 74 / 0.14), transparent 52%),
     var(--color-ink);
@@ -34,5 +39,6 @@ textarea {
 }
 
 #root {
-  min-height: 100dvh;
+  height: 100%;
+  overflow: hidden;
 }

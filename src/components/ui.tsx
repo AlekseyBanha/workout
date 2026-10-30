@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { uk } from "../i18n/uk.ts";
 import { IconBack, IconClose } from "./icons.tsx";
@@ -120,7 +121,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center">
       <button type="button" className="absolute inset-0 bg-black/70" aria-label={uk.close} onClick={onClose} />
       <div
@@ -137,7 +138,8 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

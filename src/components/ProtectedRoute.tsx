@@ -10,7 +10,7 @@ export function ProtectedRoute({ admin = false }: { admin?: boolean }) {
   if (!session) return <Navigate to="/login" replace />;
   if (profileError || !profile) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-10">
+      <div className="mx-auto h-full max-w-lg overflow-y-auto px-4 py-10">
         <ErrorState message={uk.errors.profile} />
       </div>
     );

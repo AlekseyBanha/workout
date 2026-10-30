@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { uk } from "../i18n/uk.ts";
 import { useAuth } from "../lib/auth.tsx";
@@ -14,10 +15,15 @@ export function Layout() {
   const { profile, signOut } = useAuth();
   const location = useLocation();
   const adminSection = location.pathname.startsWith("/admin");
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo(0, 0);
+  }, [location.pathname]);
 
   return (
-    <div className="min-h-dvh">
-      <header className="sticky top-0 z-20 border-b border-line bg-ink/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur">
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-line bg-ink/90 px-4 pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between">
           <div className="flex items-center gap-2">
             <Logo />
@@ -48,10 +54,12 @@ export function Layout() {
           </nav>
         ) : null}
       </header>
-      <main className={cx("mx-auto w-full px-4 pb-28 pt-4", adminSection ? "max-w-3xl" : "max-w-lg")}>
-        <Outlet />
+      <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+        <div className={cx("mx-auto w-full px-4 py-4", adminSection ? "max-w-3xl" : "max-w-lg")}>
+          <Outlet />
+        </div>
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-ink/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <nav className="shrink-0 border-t border-line bg-ink pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto flex max-w-lg">
           <NavLink to="/exercises" className={linkClass}>
             <IconCatalog />
