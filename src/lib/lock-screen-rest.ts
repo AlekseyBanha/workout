@@ -14,6 +14,7 @@ let attached = 0;
 let alignedFor = 0;
 let chimedFor = 0;
 let onSkip: (() => void) | null = null;
+let publishedKey = "";
 
 function wavUrl(samples: Int16Array, sampleRate: number): string {
   const dataSize = samples.length * 2;
@@ -67,10 +68,15 @@ function artworkList(): MediaImage[] {
 
 function ensureBed(): HTMLAudioElement {
   if (bed) return bed;
+  for (const stale of document.querySelectorAll<HTMLAudioElement>("audio[data-rest]")) {
+    stale.pause();
+    stale.remove();
+  }
   const audio = new Audio(quietBedUrl());
   audio.preload = "auto";
   audio.loop = false;
   audio.hidden = true;
+  audio.dataset.rest = "bed";
   audio.setAttribute("playsinline", "true");
   document.body.appendChild(audio);
   bed = audio;
@@ -103,6 +109,7 @@ function setHandler(action: MediaSessionAction, handler: MediaSessionActionHandl
 }
 
 function clearPresentation() {
+  publishedKey = "";
   if (!("mediaSession" in navigator)) return;
   const session = navigator.mediaSession;
   session.playbackState = "none";
@@ -170,9 +177,12 @@ function publish(remainingMs: number, done: boolean) {
       // Seeking can fail before the file has loaded.
     }
   }
-  if (audio.paused) void audio.play().catch(() => undefined);
-  const session = navigator.mediaSession;
+  if (audio.paused && !done) void audio.play().catch(() => undefined);
   const title = done ? uk.workout.restDone : `${uk.workout.rest} · ${clock(remainingMs)}`;
+  const key = `${endsAt}:${title}`;
+  if (key === publishedKey) return;
+  publishedKey = key;
+  const session = navigator.mediaSession;
   try {
     session.metadata = new MediaMetadata({
       title,
