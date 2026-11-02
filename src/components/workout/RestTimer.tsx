@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { uk } from "../../i18n/uk.ts";
-import { attachLockScreenRest, REST_MS, syncLockScreenRest } from "../../lib/lock-screen-rest.ts";
+import { attachLockScreenRest, notifyRestDone, REST_MS, syncLockScreenRest } from "../../lib/lock-screen-rest.ts";
 import { chipButton } from "../ui.tsx";
 
 export { REST_MS };
@@ -24,6 +24,9 @@ export function RestTimer({ until, onClose }: { until: number; onClose: () => vo
   }, [until]);
 
   useEffect(() => attachLockScreenRest(() => onCloseRef.current()), []);
+  useEffect(() => {
+    syncLockScreenRest(until);
+  }, [until]);
 
   const remaining = Math.max(0, until - now);
   const done = remaining === 0;
@@ -33,6 +36,7 @@ export function RestTimer({ until, onClose }: { until: number; onClose: () => vo
     if (!done || vibratedFor.current === until) return;
     vibratedFor.current = until;
     if (typeof navigator.vibrate === "function") navigator.vibrate([180, 80, 180]);
+    notifyRestDone(until);
   }, [done, until]);
 
   useEffect(() => {
@@ -45,10 +49,6 @@ export function RestTimer({ until, onClose }: { until: number; onClose: () => vo
   useEffect(() => {
     document.title = done ? `${uk.workout.restDone} · ${uk.appName}` : `${label} · ${uk.workout.rest}`;
   }, [done, label]);
-
-  useEffect(() => {
-    syncLockScreenRest(Math.max(0, until - Date.now()), done, until);
-  }, [done, label, until]);
 
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4">
