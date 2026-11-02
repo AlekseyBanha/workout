@@ -51,7 +51,7 @@ function quietBedUrl(): string {
   for (let i = 0; i < cycle.length; i += 1) {
     cycle[i] = Math.round(Math.sin((2 * Math.PI * i) / cycleLength) * 1800);
   }
-  const seconds = REST_MS / 1000 + 30;
+  const seconds = REST_MS / 1000;
   const samples = new Int16Array(rate * seconds);
   for (let offset = 0; offset < samples.length; offset += cycle.length) {
     samples.set(cycle.subarray(0, Math.min(cycle.length, samples.length - offset)), offset);
@@ -60,32 +60,9 @@ function quietBedUrl(): string {
   return bedUrl;
 }
 
-function ensureArtwork(): string {
-  if (artworkUrl) return artworkUrl;
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "";
-  ctx.fillStyle = "#14161c";
-  ctx.fillRect(0, 0, 512, 512);
-  ctx.strokeStyle = "#d6ff4a";
-  ctx.lineWidth = 28;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.arc(256, 256, 168, -Math.PI / 2, Math.PI * 1.15);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(256, 256);
-  ctx.lineTo(256, 132);
-  ctx.stroke();
-  const dataUrl = canvas.toDataURL("image/png");
-  const encoded = dataUrl.split(",")[1] ?? "";
-  const binary = atob(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  artworkUrl = URL.createObjectURL(new Blob([bytes], { type: "image/png" }));
-  return artworkUrl;
+function artworkList(): MediaImage[] {
+  if (!artworkUrl) artworkUrl = new URL("/rest-lock.png", window.location.origin).href;
+  return [{ src: artworkUrl, sizes: "512x512", type: "image/png" }];
 }
 
 function ensureBed(): HTMLAudioElement {
@@ -194,18 +171,17 @@ function publish(remainingMs: number, done: boolean) {
     }
   }
   if (audio.paused) void audio.play().catch(() => undefined);
-  const artwork = ensureArtwork();
   const session = navigator.mediaSession;
-  const title = done ? uk.workout.restDone : clock(remainingMs);
+  const title = done ? uk.workout.restDone : `${uk.workout.rest} · ${clock(remainingMs)}`;
   try {
     session.metadata = new MediaMetadata({
       title,
-      artist: uk.workout.rest,
-      album: uk.appName,
-      artwork: artwork ? [{ src: artwork, sizes: "512x512", type: "image/png" }] : [],
+      artist: uk.appName,
+      album: uk.workout.rest,
+      artwork: artworkList(),
     });
   } catch {
-    session.metadata = new MediaMetadata({ title, artist: uk.workout.rest, album: uk.appName });
+    session.metadata = new MediaMetadata({ title, artist: uk.appName, album: uk.workout.rest });
   }
   session.playbackState = "playing";
   try {
