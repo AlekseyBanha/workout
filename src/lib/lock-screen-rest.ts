@@ -79,7 +79,12 @@ function ensureArtwork(): string {
   ctx.moveTo(256, 256);
   ctx.lineTo(256, 132);
   ctx.stroke();
-  artworkUrl = canvas.toDataURL("image/png");
+  const dataUrl = canvas.toDataURL("image/png");
+  const encoded = dataUrl.split(",")[1] ?? "";
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  artworkUrl = URL.createObjectURL(new Blob([bytes], { type: "image/png" }));
   return artworkUrl;
 }
 
@@ -88,7 +93,9 @@ function ensureBed(): HTMLAudioElement {
   const audio = new Audio(quietBedUrl());
   audio.preload = "auto";
   audio.loop = false;
+  audio.hidden = true;
   audio.setAttribute("playsinline", "true");
+  document.body.appendChild(audio);
   bed = audio;
   return audio;
 }
@@ -172,15 +179,13 @@ export function notifyRestDone(until: number) {
   playChime();
 }
 
-function present() {
-  if (!armed || !endsAt || !("mediaSession" in navigator)) return;
-  const audio = ensureBed();
-  const remaining = Math.max(0, endsAt - Date.now());
-  const done = remaining === 0;
+function publish(remainingMs: number, done: boolean) {
+  if (!("mediaSession" in navigator)) return;
+  const audio = bed ?? ensureBed();
   const duration = REST_MS / 1000;
-  const position = Math.min(duration, Math.max(0, (REST_MS - remaining) / 1000));
+  const position = Math.min(duration, Math.max(0, (REST_MS - remainingMs) / 1000));
   setAudioSession("playback");
-  if (alignedFor !== endsAt) {
+  if (endsAt && alignedFor !== endsAt) {
     try {
       audio.currentTime = position;
       alignedFor = endsAt;
@@ -188,15 +193,20 @@ function present() {
       // Seeking can fail before the file has loaded.
     }
   }
-  void audio.play().catch(() => undefined);
+  if (audio.paused) void audio.play().catch(() => undefined);
   const artwork = ensureArtwork();
   const session = navigator.mediaSession;
-  session.metadata = new MediaMetadata({
-    title: done ? uk.workout.restDone : clock(remaining),
-    artist: uk.workout.rest,
-    album: uk.appName,
-    artwork: artwork ? [{ src: artwork, sizes: "512x512", type: "image/png" }] : [],
-  });
+  const title = done ? uk.workout.restDone : clock(remainingMs);
+  try {
+    session.metadata = new MediaMetadata({
+      title,
+      artist: uk.workout.rest,
+      album: uk.appName,
+      artwork: artwork ? [{ src: artwork, sizes: "512x512", type: "image/png" }] : [],
+    });
+  } catch {
+    session.metadata = new MediaMetadata({ title, artist: uk.workout.rest, album: uk.appName });
+  }
   session.playbackState = "playing";
   try {
     session.setPositionState({ duration, playbackRate: done ? 0 : 1, position });
@@ -215,14 +225,13 @@ function present() {
   setHandler("seekto", null);
   setHandler("previoustrack", null);
   setHandler("nexttrack", null);
-  if (done) notifyRestDone(endsAt);
+  if (done && endsAt) notifyRestDone(endsAt);
 }
 
-function hidePlayer() {
-  bed?.pause();
-  alignedFor = 0;
-  setAudioSession("ambient");
-  clearPresentation();
+function present() {
+  if (!armed || !endsAt) return;
+  const remaining = Math.max(0, endsAt - Date.now());
+  publish(remaining, remaining === 0);
 }
 
 export function armLockScreenRest(): void {
@@ -232,22 +241,9 @@ export function armLockScreenRest(): void {
   if (!("mediaSession" in navigator)) return;
   const audio = ensureBed();
   setAudioSession("playback");
-  // play() has to start in the tap. Pause afterwards so the phone does not keep a player over the workout.
-  void audio.play().then(() => {
-    if (armed && document.visibilityState === "hidden" && endsAt) {
-      present();
-      return;
-    }
-    audio.pause();
-    try {
-      audio.currentTime = 0;
-    } catch {
-      // The file may not be seekable yet.
-    }
-    alignedFor = 0;
-    setAudioSession("ambient");
-    clearPresentation();
-  }).catch(() => undefined);
+  // Playback has to begin in the tap and stay running, or iOS will not keep the card on the lock screen.
+  void audio.play().catch(() => undefined);
+  publish(endsAt ? Math.max(0, endsAt - Date.now()) : REST_MS, false);
 }
 
 export function cancelLockScreenArm(): void {
@@ -256,15 +252,13 @@ export function cancelLockScreenArm(): void {
   endsAt = 0;
   bed?.pause();
   alignedFor = 0;
-  setAudioSession("ambient");
   clearPresentation();
 }
 
 export function syncLockScreenRest(until: number) {
   endsAt = until;
   if (!armed) return;
-  if (document.visibilityState === "hidden") present();
-  else if (until <= Date.now()) notifyRestDone(until);
+  present();
 }
 
 export function attachLockScreenRest(skip: () => void): () => void {
@@ -272,11 +266,9 @@ export function attachLockScreenRest(skip: () => void): () => void {
   onSkip = skip;
   const onVisibility = () => {
     if (document.visibilityState === "hidden") present();
-    else hidePlayer();
   };
   document.addEventListener("visibilitychange", onVisibility);
   const timer = window.setInterval(() => {
-    if (document.visibilityState !== "hidden") return;
     present();
   }, 1000);
   const generation = attached;
@@ -291,7 +283,6 @@ export function attachLockScreenRest(skip: () => void): () => void {
       onSkip = null;
       alignedFor = 0;
       bed?.pause();
-      setAudioSession("ambient");
       clearPresentation();
     }, 0);
   };
