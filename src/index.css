@@ -42,3 +42,18 @@ textarea {
   height: 100%;
   overflow: hidden;
 }
+
+@keyframes toast-rise {
+  from {
+    transform: translateY(0.75rem);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.toast-rise {
+  animation: toast-rise 180ms ease-out;
+}

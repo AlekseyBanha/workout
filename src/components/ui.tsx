@@ -144,32 +144,58 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
 }
 
 export function ConfirmDialog({
-  title,
   body,
   confirmLabel,
   busy,
   onConfirm,
   onClose,
 }: {
-  title: string;
-  body: string;
+  body?: string;
   confirmLabel: string;
   busy?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  return (
-    <Sheet title={title} onClose={onClose}>
-      <p className="text-sm text-muted">{body}</p>
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <button type="button" className={secondaryButton} onClick={onClose} disabled={busy}>
-          {uk.cancel}
-        </button>
-        <button type="button" className={dangerButton} onClick={onConfirm} disabled={busy}>
-          {busy ? uk.saving : confirmLabel}
-        </button>
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && !busy) onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, onClose]);
+
+  return createPortal(
+    <div className="fixed inset-0 z-50">
+      <button type="button" className="absolute inset-0 cursor-default" aria-label={uk.cancel} onClick={() => { if (!busy) onClose(); }} />
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={uk.sure}
+        className="toast-rise absolute inset-x-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] mx-auto max-w-lg rounded-2xl border border-danger/40 bg-panel p-4 shadow-2xl"
+      >
+        <p className="font-semibold">{uk.sure}</p>
+        {body ? <p className="mt-1 text-sm text-muted">{body}</p> : null}
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl border border-line bg-ink px-4 text-sm font-medium disabled:opacity-50"
+            onClick={onClose}
+            disabled={busy}
+          >
+            {uk.cancel}
+          </button>
+          <button
+            type="button"
+            className={`${dangerButton} flex-1`}
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? uk.saving : confirmLabel}
+          </button>
+        </div>
       </div>
-    </Sheet>
+    </div>,
+    document.body,
   );
 }
 

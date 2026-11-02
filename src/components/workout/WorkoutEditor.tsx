@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { uk } from "../../i18n/uk.ts";
+import { fill, uk } from "../../i18n/uk.ts";
 import { useAuth } from "../../lib/auth.tsx";
 import { isHalfStep } from "../../lib/numbers.ts";
 import { previousSessionSets, type HistorySet, type ProgressionSettings } from "../../lib/progression.ts";
@@ -11,10 +11,110 @@ import { asExercise, asList, asSet, asStringRecord, asWorkout, type Exercise, ty
 import { BackButton, ConfirmDialog, dangerOutline, ErrorState, fieldClass, Loading, secondaryButton, useTitle } from "../ui.tsx";
 import { ExerciseBlock } from "./ExerciseBlock.tsx";
 import { ExercisePicker } from "./ExercisePicker.tsx";
+import { REST_MS, RestTimer } from "./RestTimer.tsx";
+
+const PENDING_KEY = "workout-pending-exercises";
 
 function mergeHistory(current: HistorySet[], incoming: HistorySet[], exerciseIds: string[]): HistorySet[] {
   const replace = new Set(exerciseIds);
   return [...current.filter((row) => !replace.has(row.exercise_id)), ...incoming];
+}
+
+function readPendingMap(): Record<string, string[]> {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const result: Record<string, string[]> = {};
+    for (const [workoutId, value] of Object.entries(parsed)) {
+      if (!Array.isArray(value)) continue;
+      const ids = value.filter((item): item is string => typeof item === "string" && item.length > 0);
+      if (ids.length) result[workoutId] = ids;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function readPending(workoutId: string): string[] {
+  return readPendingMap()[workoutId] ?? [];
+}
+
+function writePending(workoutId: string, ids: string[]) {
+  try {
+    const map = readPendingMap();
+    if (ids.length) map[workoutId] = ids;
+    else delete map[workoutId];
+    sessionStorage.setItem(PENDING_KEY, JSON.stringify(map));
+  } catch {
+    // Private mode or a full quota should not block the workout.
+  }
+}
+
+function mergePending(current: Exercise[], storedIds: string[], catalogList: Exercise[]): Exercise[] {
+  const byId = new Map<string, Exercise>();
+  for (const exercise of [...catalogList, ...current]) byId.set(exercise.id, exercise);
+  const next: Exercise[] = [];
+  const seen = new Set<string>();
+  for (const exerciseId of storedIds) {
+    const exercise = byId.get(exerciseId);
+    if (!exercise || seen.has(exercise.id)) continue;
+    seen.add(exercise.id);
+    next.push(exercise);
+  }
+  for (const exercise of current) {
+    if (seen.has(exercise.id)) continue;
+    seen.add(exercise.id);
+    next.push(exercise);
+  }
+  if (next.length === current.length && next.every((exercise, index) => exercise.id === current[index]?.id)) return current;
+  return next;
+}
+
+function useAutosaveWorkoutField(
+  id: string,
+  column: "title" | "note",
+  value: string,
+  phase: string,
+  onError: () => void,
+) {
+  const ready = useRef(false);
+  const pending = useRef<{ value: string | null } | null>(null);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  useEffect(() => {
+    if (phase !== "ready" || !supabase) return;
+    if (!ready.current) {
+      ready.current = true;
+      return;
+    }
+    const client = supabase;
+    const next = value.trim() || null;
+    pending.current = { value: next };
+    const timer = window.setTimeout(() => {
+      pending.current = null;
+      void client.from("workouts").update({ [column]: next }).eq("id", id).select("id").then(({ data, error }) => {
+        if (error || !data?.length) onErrorRef.current();
+      });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [column, id, phase, value]);
+
+  useEffect(() => {
+    const workoutId = id;
+    const field = column;
+    return () => {
+      const next = pending.current;
+      if (!next || !supabase) return;
+      pending.current = null;
+      void supabase.from("workouts").update({ [field]: next.value }).eq("id", workoutId).select("id").then(({ data, error }) => {
+        if (error || !data?.length) onErrorRef.current();
+      });
+    };
+  }, [column, id]);
 }
 
 function parseHistory(value: unknown): HistorySet[] {
@@ -68,9 +168,15 @@ export function WorkoutEditor({ id }: { id: string }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [settings, setSettings] = useState<ProgressionSettings>(loadProgressionSettings);
   const [settingsError, setSettingsError] = useState("");
-  const noteReady = useRef(false);
-  const titleReady = useRef(false);
+  const [restUntil, setRestUntil] = useState<number | null>(null);
   useTitle(uk.workout.title);
+  useAutosaveWorkoutField(id, "title", title, phase, () => setError(uk.workout.saveError));
+  useAutosaveWorkoutField(id, "note", note, phase, () => setError(uk.workout.saveError));
+
+  useEffect(() => {
+    if (phase !== "ready") return;
+    writePending(id, pending.map((exercise) => exercise.id));
+  }, [id, pending, phase]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -125,11 +231,13 @@ export function WorkoutEditor({ id }: { id: string }) {
         return;
       }
 
+      const catalogList = asList(catalogRes.data, asExercise);
       setWorkout(current);
       setSets(nextSets);
       setExercises(asList(exerciseRes.data, asExercise));
-      setCatalog(asList(catalogRes.data, asExercise));
+      setCatalog(catalogList);
       setHistory((existing) => mergeHistory(existing, parseHistory(historyRes.data), ids));
+      setPending((existing) => mergePending(existing, readPending(id), catalogList));
       if (reload === 0) {
         setNote(current.note ?? "");
         setTitle(current.title ?? "");
@@ -142,30 +250,6 @@ export function WorkoutEditor({ id }: { id: string }) {
       active = false;
     };
   }, [id, reload]);
-
-  useEffect(() => {
-    if (phase !== "ready" || !supabase) return;
-    if (!noteReady.current) {
-      noteReady.current = true;
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      void supabase?.from("workouts").update({ note: note.trim() || null }).eq("id", id);
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [note, phase, id]);
-
-  useEffect(() => {
-    if (phase !== "ready" || !supabase) return;
-    if (!titleReady.current) {
-      titleReady.current = true;
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      void supabase?.from("workouts").update({ title: title.trim() || null }).eq("id", id);
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [title, phase, id]);
 
   const blocks = useMemo(() => {
     const known = new Map<string, Exercise>();
@@ -220,6 +304,7 @@ export function WorkoutEditor({ id }: { id: string }) {
       return false;
     }
     setReload((value) => value + 1);
+    setRestUntil(Date.now() + REST_MS);
     return true;
   }
 
@@ -328,7 +413,7 @@ export function WorkoutEditor({ id }: { id: string }) {
   if (phase === "missing" || !workout) return <ErrorState message={uk.workout.notFound} />;
 
   return (
-    <div className="space-y-4">
+    <div className={restUntil ? "space-y-4 pb-28" : "space-y-4"}>
       <BackButton onClick={goBack} />
       <h1 className="text-2xl font-semibold">{uk.workout.title}</h1>
       <label className="block">
@@ -373,13 +458,7 @@ export function WorkoutEditor({ id }: { id: string }) {
           onAdd={(weight, reps) => addSet(block.exercise.id, weight, reps)}
           onUpdate={updateSet}
           onDelete={deleteSet}
-          onRemove={() => {
-            if (block.sets.length === 0) {
-              setPending((current) => current.filter((item) => item.id !== block.exercise.id));
-              return;
-            }
-            setRemoveTarget(block.exercise);
-          }}
+          onRemove={() => setRemoveTarget(block.exercise)}
         />
       ))}
       <button type="button" className={secondaryButton} onClick={() => setPickerOpen(true)}>
@@ -441,8 +520,11 @@ export function WorkoutEditor({ id }: { id: string }) {
       ) : null}
       {removeTarget ? (
         <ConfirmDialog
-          title={uk.workout.removeExercise}
-          body={uk.workout.removeExerciseConfirm.replace("{name}", removeTarget.name)}
+          body={
+            sets.some((set) => set.exercise_id === removeTarget.id)
+              ? fill(uk.workout.removeExerciseConfirm, { name: removeTarget.name })
+              : undefined
+          }
           confirmLabel={uk.delete}
           busy={busy}
           onClose={() => setRemoveTarget(null)}
@@ -451,7 +533,6 @@ export function WorkoutEditor({ id }: { id: string }) {
       ) : null}
       {deleteOpen ? (
         <ConfirmDialog
-          title={uk.workout.deleteWorkout}
           body={uk.workout.deleteWorkoutConfirm}
           confirmLabel={uk.delete}
           busy={busy}
@@ -459,6 +540,7 @@ export function WorkoutEditor({ id }: { id: string }) {
           onConfirm={() => void deleteWorkout()}
         />
       ) : null}
+      {restUntil ? <RestTimer until={restUntil} onClose={() => setRestUntil(null)} /> : null}
     </div>
   );
 }

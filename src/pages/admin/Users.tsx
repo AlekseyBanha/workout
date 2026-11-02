@@ -256,7 +256,6 @@ export function AdminUsersPage() {
       ) : null}
       {deleteTarget ? (
         <ConfirmDialog
-          title={uk.admin.deleteUser}
           body={formError || fill(uk.admin.deleteUserConfirm, { email: deleteTarget.email })}
           confirmLabel={uk.delete}
           busy={busy}

@@ -334,7 +334,6 @@ export function AdminExercisesPage() {
       ) : null}
       {deleteTarget ? (
         <ConfirmDialog
-          title={uk.admin.deleteExercise}
           body={formError || fill(uk.admin.deleteExerciseConfirm, { name: deleteTarget.name })}
           confirmLabel={uk.delete}
           busy={busy}

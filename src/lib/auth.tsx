@@ -48,14 +48,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const userId = session?.user.id ?? null;
+
   useEffect(() => {
-    if (!supabase || !session) return;
+    if (!supabase || !userId) return;
     let active = true;
     setLoading(true);
     supabase
       .from("profiles")
       .select("id, email, display_name, role, created_at")
-      .eq("id", session.user.id)
+      .eq("id", userId)
       .single()
       .then(({ data, error }) => {
         if (!active) return;
@@ -67,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [session]);
+  }, [userId]);
 
   const value = useMemo<AuthState>(() => ({
     session,

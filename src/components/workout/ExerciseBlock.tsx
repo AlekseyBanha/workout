@@ -10,7 +10,8 @@ import {
   type SetSnapshot,
 } from "../../lib/progression.ts";
 import type { Exercise, WorkoutSet } from "../../lib/types.ts";
-import { chipButton, chipDanger, fieldClass, numberClass, primaryButton } from "../ui.tsx";
+import { armLockScreenRest, cancelLockScreenArm } from "../../lib/lock-screen-rest.ts";
+import { chipButton, chipDanger, ConfirmDialog, fieldClass, numberClass, primaryButton } from "../ui.tsx";
 
 type Draft = { weight: string; reps: string };
 
@@ -51,6 +52,7 @@ export function ExerciseBlock({
   const [editDraft, setEditDraft] = useState<Draft>({ weight: "", reps: "" });
   const [error, setError] = useState("");
   const [pulse, setPulse] = useState(0);
+  const [setToDelete, setSetToDelete] = useState<WorkoutSet | null>(null);
   const seeded = useRef(false);
 
   useEffect(() => {
@@ -99,8 +101,12 @@ export function ExerciseBlock({
   async function addSet() {
     const parsed = readDraft(draft);
     if (!parsed) return;
+    armLockScreenRest();
     const ok = await onAdd(parsed.weight, parsed.reps);
-    if (!ok) return;
+    if (!ok) {
+      cancelLockScreenArm();
+      return;
+    }
     const following = prefillForNextSet(previous, nextNumber + 1);
     setDraft(following ? draftFrom(following.weight, following.reps) : { weight: "", reps: "" });
   }
@@ -220,7 +226,7 @@ export function ExerciseBlock({
                   >
                     {uk.edit}
                   </button>
-                  <button type="button" className={chipDanger} onClick={() => void onDelete(set)}>
+                  <button type="button" className={chipDanger} onClick={() => setSetToDelete(set)}>
                     {uk.delete}
                   </button>
                 </div>
@@ -251,6 +257,18 @@ export function ExerciseBlock({
       <button type="button" className={`${primaryButton} mt-3`} disabled={busy} onClick={() => void addSet()}>
         {uk.workout.addSet}
       </button>
+      {setToDelete ? (
+        <ConfirmDialog
+          body={uk.workout.deleteSetConfirm}
+          confirmLabel={uk.delete}
+          busy={busy}
+          onClose={() => setSetToDelete(null)}
+          onConfirm={() => {
+            const target = setToDelete;
+            void onDelete(target).finally(() => setSetToDelete(null));
+          }}
+        />
+      ) : null}
     </section>
   );
 }
