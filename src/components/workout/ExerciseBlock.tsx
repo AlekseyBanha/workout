@@ -52,6 +52,8 @@ export function ExerciseBlock({
   const [editDraft, setEditDraft] = useState<Draft>({ weight: "", reps: "" });
   const [error, setError] = useState("");
   const [pulse, setPulse] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [setToDelete, setSetToDelete] = useState<WorkoutSet | null>(null);
   const seeded = useRef(false);
 
@@ -99,16 +101,24 @@ export function ExerciseBlock({
   }
 
   async function addSet() {
+    if (adding) return;
     const parsed = readDraft(draft);
     if (!parsed) return;
-    armLockScreenRest();
-    const ok = await onAdd(parsed.weight, parsed.reps);
-    if (!ok) {
-      cancelLockScreenArm();
-      return;
-    }
+    const snapshot = draft;
     const following = prefillForNextSet(previous, nextNumber + 1);
-    setDraft(following ? draftFrom(following.weight, following.reps) : { weight: "", reps: "" });
+    const nextDraft = following ? draftFrom(following.weight, following.reps) : { weight: "", reps: "" };
+    setDraft(nextDraft);
+    setAdding(true);
+    armLockScreenRest();
+    let ok = false;
+    try {
+      ok = await onAdd(parsed.weight, parsed.reps);
+    } finally {
+      setAdding(false);
+    }
+    if (ok) return;
+    cancelLockScreenArm();
+    setDraft((current) => current.weight === nextDraft.weight && current.reps === nextDraft.reps ? snapshot : current);
   }
 
   return (
@@ -195,17 +205,18 @@ export function ExerciseBlock({
                 />
                 <button
                   type="button"
-                  className="h-12 rounded-xl bg-lime px-3 text-sm font-semibold text-ink"
-                  disabled={busy}
+                  className="h-12 rounded-xl bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-50"
+                  disabled={busy || savingEdit}
                   onClick={() => {
                     const parsed = readDraft(editDraft);
-                    if (!parsed) return;
+                    if (!parsed || savingEdit) return;
+                    setSavingEdit(true);
                     void onUpdate(set, parsed.weight, parsed.reps).then((ok) => {
-                      if (ok) setEditingId(null);
-                    });
+                      if (ok) setEditingId((current) => current === set.id ? null : current);
+                    }).finally(() => setSavingEdit(false));
                   }}
                 >
-                  {uk.save}
+                  {savingEdit ? uk.saving : uk.save}
                 </button>
               </div>
             ) : (
@@ -254,8 +265,8 @@ export function ExerciseBlock({
         />
       </div>
       {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
-      <button type="button" className={`${primaryButton} mt-3`} disabled={busy} onClick={() => void addSet()}>
-        {uk.workout.addSet}
+      <button type="button" className={`${primaryButton} mt-3`} disabled={busy || adding} onClick={() => void addSet()}>
+        {adding ? uk.saving : uk.workout.addSet}
       </button>
       {setToDelete ? (
         <ConfirmDialog
@@ -265,7 +276,8 @@ export function ExerciseBlock({
           onClose={() => setSetToDelete(null)}
           onConfirm={() => {
             const target = setToDelete;
-            void onDelete(target).finally(() => setSetToDelete(null));
+            setSetToDelete(null);
+            void onDelete(target);
           }}
         />
       ) : null}

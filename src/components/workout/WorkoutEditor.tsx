@@ -11,6 +11,7 @@ import { asExercise, asList, asSet, asStringRecord, asWorkout, type Exercise, ty
 import { BackButton, ConfirmDialog, dangerOutline, ErrorState, fieldClass, Loading, secondaryButton, useTitle } from "../ui.tsx";
 import { ExerciseBlock } from "./ExerciseBlock.tsx";
 import { ExercisePicker } from "./ExercisePicker.tsx";
+import { cancelLockScreenArm } from "../../lib/lock-screen-rest.ts";
 import { REST_MS, RestTimer } from "./RestTimer.tsx";
 
 const PENDING_KEY = "workout-pending-exercises";
@@ -169,6 +170,13 @@ export function WorkoutEditor({ id }: { id: string }) {
   const [settings, setSettings] = useState<ProgressionSettings>(loadProgressionSettings);
   const [settingsError, setSettingsError] = useState("");
   const [restUntil, setRestUntil] = useState<number | null>(null);
+  const [writes, setWrites] = useState(0);
+  const setsRef = useRef<WorkoutSet[]>([]);
+  const pendingRef = useRef<Exercise[]>([]);
+  const removedRef = useRef(new Set<string>());
+  const tailsRef = useRef(new Map<string, Promise<unknown>>());
+  const numbersRef = useRef(new Map<string, number>());
+  const restGen = useRef(0);
   useTitle(uk.workout.title);
   useAutosaveWorkoutField(id, "title", title, phase, () => setError(uk.workout.saveError));
   useAutosaveWorkoutField(id, "note", note, phase, () => setError(uk.workout.saveError));
@@ -232,12 +240,21 @@ export function WorkoutEditor({ id }: { id: string }) {
       }
 
       const catalogList = asList(catalogRes.data, asExercise);
+      setsRef.current = nextSets;
+      for (const set of nextSets) {
+        const prev = numbersRef.current.get(set.exercise_id) ?? 0;
+        if (set.set_number > prev) numbersRef.current.set(set.exercise_id, set.set_number);
+      }
       setWorkout(current);
       setSets(nextSets);
       setExercises(asList(exerciseRes.data, asExercise));
       setCatalog(catalogList);
       setHistory((existing) => mergeHistory(existing, parseHistory(historyRes.data), ids));
-      setPending((existing) => mergePending(existing, readPending(id), catalogList));
+      setPending((existing) => {
+        const next = mergePending(existing, readPending(id), catalogList);
+        pendingRef.current = next;
+        return next;
+      });
       if (reload === 0) {
         setNote(current.note ?? "");
         setTitle(current.title ?? "");
@@ -285,75 +302,169 @@ export function WorkoutEditor({ id }: { id: string }) {
     setHistory((current) => mergeHistory(current, parseHistory(data), [exerciseId]));
   }
 
+  function replaceSets(next: WorkoutSet[]) {
+    setsRef.current = next;
+    setSets(next);
+  }
+
+  function nextSetNumber(exerciseId: string) {
+    const fromList = setsRef.current
+      .filter((set) => set.exercise_id === exerciseId)
+      .reduce((max, set) => Math.max(max, set.set_number), 0);
+    const next = Math.max(fromList, numbersRef.current.get(exerciseId) ?? 0) + 1;
+    numbersRef.current.set(exerciseId, next);
+    return next;
+  }
+
+  function enqueue<T>(id: string, job: () => Promise<T>): Promise<T> {
+    const prev = tailsRef.current.get(id) ?? Promise.resolve();
+    const run = prev.then(job, job);
+    tailsRef.current.set(id, run);
+    setWrites((count) => count + 1);
+    void run.finally(() => setWrites((count) => count - 1));
+    return run;
+  }
+
+  function restoreSets(sets: WorkoutSet[]) {
+    const have = new Set(setsRef.current.map((set) => set.id));
+    const missing = sets.filter((set) => !have.has(set.id));
+    if (missing.length === 0) return;
+    replaceSets([...setsRef.current, ...missing]);
+  }
+
   async function addSet(exerciseId: string, weight: number, reps: number) {
     if (!supabase || !profile || !workout) return false;
-    setBusy(true);
+    const client = supabase;
+    const userId = profile.id;
+    const workoutId = workout.id;
     setError("");
-    const setNumber = (sets.filter((set) => set.exercise_id === exerciseId).at(-1)?.set_number ?? 0) + 1;
-    const { error: insertError } = await supabase.from("workout_sets").insert({
-      workout_id: workout.id,
-      user_id: profile.id,
+    const created: WorkoutSet = {
+      id: crypto.randomUUID(),
+      workout_id: workoutId,
+      user_id: userId,
       exercise_id: exerciseId,
-      set_number: setNumber,
+      set_number: nextSetNumber(exerciseId),
       weight,
       reps,
-    });
-    setBusy(false);
-    if (insertError) {
+      created_at: new Date().toISOString(),
+    };
+    replaceSets([...setsRef.current, created]);
+    const generation = restGen.current + 1;
+    restGen.current = generation;
+    setRestUntil(Date.now() + REST_MS);
+    return enqueue(created.id, async () => {
+      try {
+        if (removedRef.current.has(created.id)) return true;
+        const latest = setsRef.current.find((set) => set.id === created.id) ?? created;
+        const { error: insertError } = await client.from("workout_sets").insert({
+          id: latest.id,
+          workout_id: latest.workout_id,
+          user_id: latest.user_id,
+          exercise_id: latest.exercise_id,
+          set_number: latest.set_number,
+          weight: latest.weight,
+          reps: latest.reps,
+        });
+        if (removedRef.current.has(created.id)) return true;
+        if (!insertError) return true;
+      } catch {
+        // Rollback below covers a thrown request.
+      }
+      if (removedRef.current.has(created.id)) return true;
+      replaceSets(setsRef.current.filter((set) => set.id !== created.id));
+      if (restGen.current === generation) {
+        setRestUntil(null);
+        cancelLockScreenArm();
+      }
       setError(uk.workout.saveError);
       return false;
-    }
-    setReload((value) => value + 1);
-    setRestUntil(Date.now() + REST_MS);
-    return true;
+    });
   }
 
   async function updateSet(set: WorkoutSet, weight: number, reps: number) {
     if (!supabase) return false;
-    setBusy(true);
+    const client = supabase;
     setError("");
-    const { error: updateError } = await supabase.from("workout_sets").update({ weight, reps }).eq("id", set.id);
-    setBusy(false);
-    if (updateError) {
+    const previous = setsRef.current.find((item) => item.id === set.id) ?? set;
+    replaceSets(setsRef.current.map((item) => item.id === set.id ? { ...item, weight, reps } : item));
+    return enqueue(set.id, async () => {
+      let failed = false;
+      try {
+        if (removedRef.current.has(set.id)) return false;
+        const { error: updateError } = await client.from("workout_sets").update({ weight, reps }).eq("id", set.id);
+        if (removedRef.current.has(set.id)) return false;
+        failed = updateError !== null;
+      } catch {
+        failed = true;
+      }
+      if (!failed) return true;
+      const current = setsRef.current.find((item) => item.id === set.id);
+      if (current && current.weight === weight && current.reps === reps) {
+        replaceSets(setsRef.current.map((item) => item.id === set.id ? previous : item));
+      }
       setError(uk.workout.saveError);
       return false;
-    }
-    setReload((value) => value + 1);
-    return true;
+    });
   }
 
   async function deleteSet(set: WorkoutSet) {
     if (!supabase) return;
-    setBusy(true);
+    const client = supabase;
     setError("");
-    const { error: deleteError } = await supabase.from("workout_sets").delete().eq("id", set.id);
-    setBusy(false);
-    if (deleteError) {
+    removedRef.current.add(set.id);
+    replaceSets(setsRef.current.filter((item) => item.id !== set.id));
+    await enqueue(set.id, async () => {
+      let failed = false;
+      try {
+        const { error: deleteError } = await client.from("workout_sets").delete().eq("id", set.id);
+        failed = deleteError !== null;
+      } catch {
+        failed = true;
+      }
+      if (!failed) return;
+      removedRef.current.delete(set.id);
+      restoreSets([set]);
       setError(uk.workout.saveError);
-      return;
-    }
-    setReload((value) => value + 1);
+    });
   }
 
   async function removeExercise(exercise: Exercise) {
-    const related = sets.filter((set) => set.exercise_id === exercise.id);
+    const related = setsRef.current.filter((set) => set.exercise_id === exercise.id);
+    const wasPending = pendingRef.current.some((item) => item.id === exercise.id);
+    setRemoveTarget(null);
     if (related.length === 0) {
-      setPending((current) => current.filter((item) => item.id !== exercise.id));
-      setRemoveTarget(null);
+      const next = pendingRef.current.filter((item) => item.id !== exercise.id);
+      pendingRef.current = next;
+      setPending(next);
       return;
     }
     if (!supabase) return;
-    setBusy(true);
+    const client = supabase;
     setError("");
-    const { error: deleteError } = await supabase.from("workout_sets").delete().in("id", related.map((set) => set.id));
-    setBusy(false);
-    setRemoveTarget(null);
-    if (deleteError) {
-      setError(uk.workout.saveError);
-      return;
+    for (const set of related) removedRef.current.add(set.id);
+    const nextPending = pendingRef.current.filter((item) => item.id !== exercise.id);
+    pendingRef.current = nextPending;
+    setPending(nextPending);
+    replaceSets(setsRef.current.filter((set) => set.exercise_id !== exercise.id));
+    const failed = (await Promise.all(related.map((set) => enqueue(set.id, async () => {
+      let deleteFailed = false;
+      try {
+        const { error: deleteError } = await client.from("workout_sets").delete().eq("id", set.id);
+        deleteFailed = deleteError !== null;
+      } catch {
+        deleteFailed = true;
+      }
+      if (!deleteFailed) return null;
+      removedRef.current.delete(set.id);
+      return set;
+    })))).filter((set): set is WorkoutSet => set !== null);
+    if (failed.length === 0) return;
+    restoreSets(failed);
+    if (wasPending && !pendingRef.current.some((item) => item.id === exercise.id)) {
+      pendingRef.current = [...pendingRef.current, exercise];
+      setPending(pendingRef.current);
     }
-    setPending((current) => current.filter((item) => item.id !== exercise.id));
-    setReload((value) => value + 1);
+    setError(uk.workout.saveError);
   }
 
   async function changeDate(performedAt: string) {
@@ -441,7 +552,7 @@ export function WorkoutEditor({ id }: { id: string }) {
       <button
         type="button"
         className={secondaryButton}
-        disabled={repeating || busy || sets.length === 0}
+        disabled={repeating || busy || writes > 0 || sets.length === 0}
         onClick={() => void repeatThis()}
       >
         {repeating ? uk.workout.repeating : uk.workout.repeatThis}
@@ -503,7 +614,7 @@ export function WorkoutEditor({ id }: { id: string }) {
         </div>
         {settingsError ? <p className="mt-2 text-sm text-danger">{settingsError}</p> : null}
       </details>
-      <button type="button" className={dangerOutline} onClick={() => setDeleteOpen(true)}>
+      <button type="button" className={dangerOutline} disabled={busy || writes > 0} onClick={() => setDeleteOpen(true)}>
         {uk.workout.deleteWorkout}
       </button>
       {pickerOpen ? (
@@ -512,7 +623,11 @@ export function WorkoutEditor({ id }: { id: string }) {
           takenIds={blocks.map((block) => block.exercise.id)}
           onClose={() => setPickerOpen(false)}
           onPick={(exercise) => {
-            setPending((current) => current.some((item) => item.id === exercise.id) ? current : [...current, exercise]);
+            if (!pendingRef.current.some((item) => item.id === exercise.id)) {
+              const next = [...pendingRef.current, exercise];
+              pendingRef.current = next;
+              setPending(next);
+            }
             setPickerOpen(false);
             void loadExerciseHistory(exercise.id);
           }}
