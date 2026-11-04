@@ -13,9 +13,45 @@ type HistoryItem = {
   id: string;
   performed_at: string;
   note: string | null;
+  heading: string | null;
   exerciseCount: number;
   setCount: number;
 };
+
+function finiteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
+function exerciseName(value: unknown): string | null {
+  const row = Array.isArray(value) ? asStringRecord(value[0]) : asStringRecord(value);
+  if (!row || typeof row.name !== "string" || !row.name.trim()) return null;
+  return row.name.trim();
+}
+
+function firstExerciseName(sets: unknown[]): string | null {
+  const ordered = sets.flatMap((item) => {
+    const set = asStringRecord(item);
+    if (!set || typeof set.exercise_id !== "string") return [];
+    return [{
+      exerciseId: set.exercise_id,
+      name: exerciseName(set.exercises) ?? "",
+      createdAt: typeof set.created_at === "string" ? set.created_at : "",
+      setNumber: finiteNumber(set.set_number) ?? 0,
+    }];
+  }).sort((a, b) => {
+    if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
+    return a.setNumber - b.setNumber;
+  });
+  const seen = new Set<string>();
+  for (const set of ordered) {
+    if (seen.has(set.exerciseId)) continue;
+    seen.add(set.exerciseId);
+    if (set.name) return set.name;
+  }
+  return null;
+}
 
 export function HistoryPage() {
   const navigate = useNavigate();
@@ -46,7 +82,7 @@ export function HistoryPage() {
     setPhase("loading");
     supabase
       .from("workouts")
-      .select("id, user_id, performed_at, note, created_at, workout_sets(exercise_id)")
+      .select("id, user_id, performed_at, title, note, created_at, workout_sets(exercise_id, set_number, created_at, exercises(name))")
       .order("performed_at", { ascending: false })
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
@@ -58,8 +94,20 @@ export function HistoryPage() {
         setItems(asList(data, (row) => {
           const workout = asWorkout(row);
           const record = asStringRecord(row);
-          if (!workout || !record || !Array.isArray(record.workout_sets)) return workout ? { ...workout, exerciseCount: 0, setCount: 0 } : null;
-          const ids = new Set(record.workout_sets.flatMap((set) => {
+          const sets = record && Array.isArray(record.workout_sets) ? record.workout_sets : null;
+          if (!workout || !sets) {
+            return workout
+              ? {
+                id: workout.id,
+                performed_at: workout.performed_at,
+                note: workout.note,
+                heading: workout.title?.trim() || null,
+                exerciseCount: 0,
+                setCount: 0,
+              }
+              : null;
+          }
+          const ids = new Set(sets.flatMap((set) => {
             const item = asStringRecord(set);
             return item && typeof item.exercise_id === "string" ? [item.exercise_id] : [];
           }));
@@ -67,8 +115,9 @@ export function HistoryPage() {
             id: workout.id,
             performed_at: workout.performed_at,
             note: workout.note,
+            heading: workout.title?.trim() || firstExerciseName(sets),
             exerciseCount: ids.size,
-            setCount: record.workout_sets.length,
+            setCount: sets.length,
           };
         }));
         setPhase("ready");
@@ -104,7 +153,8 @@ export function HistoryPage() {
                 <div className="flex items-center gap-2 rounded-3xl border border-line bg-panel px-4 py-3">
                   <Link to={`/workout/${item.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="min-w-0 flex-1">
-                      <span className="text-sm text-muted">
+                      {item.heading ? <span className="block font-medium">{item.heading}</span> : null}
+                      <span className={item.heading ? "mt-1 block text-sm text-muted" : "text-sm text-muted"}>
                         {fill(uk.workout.summary, { exercises: item.exerciseCount, sets: item.setCount })}
                       </span>
                       {item.note ? <span className="mt-1 block">{item.note}</span> : null}

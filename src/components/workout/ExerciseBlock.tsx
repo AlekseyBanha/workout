@@ -88,8 +88,8 @@ export function ExerciseBlock({
   function readDraft(value: Draft): { weight: number; reps: number } | null {
     const weight = parseDecimal(value.weight);
     const reps = Number(value.reps);
-    if (weight === null || weight <= 0 || weight > 999 || !isHalfStep(weight)) {
-      setError(weight === null || weight <= 0 ? uk.errors.weight : uk.errors.weightStep);
+    if (weight === null || weight < 0 || weight > 999 || !isHalfStep(weight)) {
+      setError(weight === null || weight < 0 ? uk.errors.weight : uk.errors.weightStep);
       return null;
     }
     if (!Number.isInteger(reps) || reps < 1 || reps > 100) {
@@ -252,6 +252,7 @@ export function ExerciseBlock({
           label={uk.workout.weight}
           value={draft.weight}
           step={0.5}
+          min={0}
           pulse={pulse > 0}
           onChange={(weight) => setDraft((current) => ({ ...current, weight }))}
         />
@@ -289,6 +290,7 @@ function NumberStepper({
   label,
   value,
   step,
+  min = step,
   integer = false,
   pulse = false,
   onChange,
@@ -296,13 +298,14 @@ function NumberStepper({
   label: string;
   value: string;
   step: number;
+  min?: number;
   integer?: boolean;
   pulse?: boolean;
   onChange: (value: string) => void;
 }) {
   function bump(direction: number) {
     const current = parseDecimal(value) ?? 0;
-    const next = Math.max(step, current + direction * step);
+    const next = Math.max(min, current + direction * step);
     onChange(integer ? String(Math.round(next)) : formatWeight(next));
   }
 

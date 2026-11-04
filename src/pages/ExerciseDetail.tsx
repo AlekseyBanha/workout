@@ -117,7 +117,7 @@ export function ExerciseDetailPage() {
     <div className="space-y-4">
       <BackButton to="/exercises" />
       <div className="overflow-hidden rounded-3xl border border-line bg-panel">
-        <div className="aspect-[4/3]">
+        <div className="aspect-square">
           <ExerciseThumb src={image} alt={name} />
         </div>
         <div className="space-y-2 px-4 py-4">

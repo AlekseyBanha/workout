@@ -27,7 +27,7 @@ function asCopySet(value: unknown): CopySet | null {
   const weight = finiteNumber(row.weight);
   const reps = finiteNumber(row.reps);
   if (setNumber === null || weight === null || reps === null) return null;
-  if (!Number.isInteger(setNumber) || setNumber <= 0 || weight <= 0 || !Number.isInteger(reps) || reps <= 0) return null;
+  if (!Number.isInteger(setNumber) || setNumber <= 0 || weight < 0 || !Number.isInteger(reps) || reps <= 0) return null;
   return {
     exercise_id: row.exercise_id,
     set_number: setNumber,

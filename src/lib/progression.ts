@@ -79,7 +79,7 @@ export function suggestProgression(
   settings: ProgressionSettings,
 ): ProgressionSuggestion | null {
   const match = previousSetFor(previous, nextSetNumber);
-  if (!match || match.weight <= 0 || match.reps <= 0) return null;
+  if (!match || match.weight < 0 || match.reps <= 0) return null;
 
   const room = settings.repMax - match.reps;
   if (room >= 1) {
