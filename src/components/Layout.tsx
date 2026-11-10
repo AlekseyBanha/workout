@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { uk } from "../i18n/uk.ts";
 import { useAuth } from "../lib/auth.tsx";
-import { IconAdmin, IconCatalog, IconHistory, IconWorkout } from "./icons.tsx";
+import { IconAdmin, IconCatalog, IconHistory, IconProgress, IconWorkout } from "./icons.tsx";
 import { cx, Logo } from "./ui.tsx";
 
 const SCROLL_KEY = "screen-scroll";
@@ -204,6 +204,10 @@ export function Layout() {
           <NavLink to={location.pathname === "/workout" ? `/workout${location.search}` : "/workout"} className={linkClass}>
             <IconWorkout />
             {uk.nav.workout}
+          </NavLink>
+          <NavLink to="/progress" className={linkClass}>
+            <IconProgress />
+            {uk.nav.progress}
           </NavLink>
           <NavLink to="/history" className={linkClass}>
             <IconHistory />

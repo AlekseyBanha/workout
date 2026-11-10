@@ -6,6 +6,7 @@ import { AdminUsersPage } from "./pages/admin/Users.tsx";
 import { ExerciseDetailPage } from "./pages/ExerciseDetail.tsx";
 import { ExercisesPage } from "./pages/Exercises.tsx";
 import { HistoryPage } from "./pages/History.tsx";
+import { ProgressPage } from "./pages/Progress.tsx";
 import { LoginPage } from "./pages/Login.tsx";
 import { WorkoutPage } from "./pages/Workout.tsx";
 
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/exercises/:id" element={<ExerciseDetailPage />} />
           <Route path="/workout" element={<WorkoutPage />} />
           <Route path="/workout/:id" element={<WorkoutPage />} />
+          <Route path="/progress" element={<ProgressPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route element={<ProtectedRoute admin />}>
             <Route path="/admin" element={<Navigate to="/admin/users" replace />} />

@@ -17,6 +17,15 @@ export function IconWorkout() {
   );
 }
 
+export function IconProgress() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M4 16.5 9.2 11l3.3 3.3L20 6.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14.5 6.5H20V12" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function IconHistory() {
   return (
     <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
