@@ -19,3 +19,8 @@ export function exerciseImageUrl(path: string | null): string | null {
   if (!path || !supabase) return null;
   return supabase.storage.from("exercise-images").getPublicUrl(path).data.publicUrl;
 }
+
+export function measurementImageUrl(path: string | null): string | null {
+  if (!path || !supabase) return null;
+  return supabase.storage.from("measurement-images").getPublicUrl(path).data.publicUrl;
+}

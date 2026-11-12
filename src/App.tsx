@@ -2,10 +2,12 @@ import { Navigate, Route, Routes } from "react-router";
 import { Layout } from "./components/Layout.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import { AdminExercisesPage } from "./pages/admin/Exercises.tsx";
+import { AdminMeasurementsPage } from "./pages/admin/Measurements.tsx";
 import { AdminUsersPage } from "./pages/admin/Users.tsx";
 import { ExerciseDetailPage } from "./pages/ExerciseDetail.tsx";
 import { ExercisesPage } from "./pages/Exercises.tsx";
 import { HistoryPage } from "./pages/History.tsx";
+import { MeasurementsPage } from "./pages/Measurements.tsx";
 import { ProgressPage } from "./pages/Progress.tsx";
 import { LoginPage } from "./pages/Login.tsx";
 import { WorkoutPage } from "./pages/Workout.tsx";
@@ -23,10 +25,12 @@ export default function App() {
           <Route path="/workout/:id" element={<WorkoutPage />} />
           <Route path="/progress" element={<ProgressPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/measurements" element={<MeasurementsPage />} />
           <Route element={<ProtectedRoute admin />}>
             <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />
             <Route path="/admin/exercises" element={<AdminExercisesPage />} />
+            <Route path="/admin/measurements" element={<AdminMeasurementsPage />} />
           </Route>
         </Route>
       </Route>

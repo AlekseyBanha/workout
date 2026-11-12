@@ -13,6 +13,16 @@ export function roundToHalf(value: number): number {
   return Math.round(value * 2) / 2;
 }
 
+export function isTenthStep(value: number): boolean {
+  return Math.abs(value * 10 - Math.round(value * 10)) < 1e-6;
+}
+
+export function formatMeasure(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return rounded.toFixed(1).replace(".", ",");
+}
+
 export function formatWeight(value: number): string {
   const rounded = roundToHalf(value);
   if (Number.isInteger(rounded)) return String(rounded);

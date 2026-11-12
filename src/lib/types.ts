@@ -27,6 +27,25 @@ export type Workout = {
   created_at: string;
 };
 
+export type Measurement = {
+  id: string;
+  name: string;
+  unit: "см" | "кг";
+  hint: string | null;
+  image_path: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type BodyEntry = {
+  id: string;
+  user_id: string;
+  measurement_id: string;
+  measured_at: string;
+  value: number;
+  created_at: string;
+};
+
 export type WorkoutSet = {
   id: string;
   workout_id: string;
@@ -88,6 +107,46 @@ export function asExercise(value: unknown): Exercise | null {
     description: asString(row.description),
     image_path: asString(row.image_path),
     created_by: asString(row.created_by),
+    created_at: createdAt,
+  };
+}
+
+export function asMeasurement(value: unknown): Measurement | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const id = asString(row.id);
+  const name = asString(row.name);
+  const unit = row.unit === "см" || row.unit === "кг" ? row.unit : null;
+  const sortOrder = asNumber(row.sort_order);
+  const createdAt = asString(row.created_at);
+  if (!id || !name || !unit || sortOrder === null || !createdAt) return null;
+  return {
+    id,
+    name,
+    unit,
+    hint: asString(row.hint),
+    image_path: asString(row.image_path),
+    sort_order: sortOrder,
+    created_at: createdAt,
+  };
+}
+
+export function asBodyEntry(value: unknown): BodyEntry | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  const id = asString(row.id);
+  const userId = asString(row.user_id);
+  const measurementId = asString(row.measurement_id);
+  const measuredAt = asString(row.measured_at);
+  const valueNumber = asNumber(row.value);
+  const createdAt = asString(row.created_at);
+  if (!id || !userId || !measurementId || !measuredAt || valueNumber === null || !createdAt) return null;
+  return {
+    id,
+    user_id: userId,
+    measurement_id: measurementId,
+    measured_at: measuredAt,
+    value: valueNumber,
     created_at: createdAt,
   };
 }

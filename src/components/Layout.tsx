@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { uk } from "../i18n/uk.ts";
 import { useAuth } from "../lib/auth.tsx";
-import { IconAdmin, IconCatalog, IconHistory, IconProgress, IconWorkout } from "./icons.tsx";
+import { IconAdmin, IconCatalog, IconHistory, IconMeasure, IconProgress, IconWorkout } from "./icons.tsx";
 import { cx, Logo } from "./ui.tsx";
 
 const SCROLL_KEY = "screen-scroll";
@@ -187,6 +187,14 @@ export function Layout() {
             >
               {uk.admin.exercises}
             </NavLink>
+            <NavLink
+              to="/admin/measurements"
+              className={({ isActive }) =>
+                cx("rounded-full px-3 py-1.5 text-sm", isActive ? "bg-lime text-ink" : "bg-panel text-muted")
+              }
+            >
+              {uk.admin.measurements}
+            </NavLink>
           </nav>
         ) : null}
       </header>
@@ -212,6 +220,10 @@ export function Layout() {
           <NavLink to="/history" className={linkClass}>
             <IconHistory />
             {uk.nav.history}
+          </NavLink>
+          <NavLink to="/measurements" className={linkClass}>
+            <IconMeasure />
+            {uk.nav.measurements}
           </NavLink>
           {profile?.role === "admin" ? (
             <NavLink to="/admin/users" className={linkClass}>

@@ -59,6 +59,15 @@ export function IconClose({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+export function IconMeasure() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <rect x="3.5" y="7" width="17" height="10" rx="2" />
+      <path d="M7.5 7v3.2M12 7v4.2M16.5 7v3.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function IconAdmin() {
   return (
     <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
